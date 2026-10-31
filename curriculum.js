@@ -8,6 +8,10 @@ const CURRICULUM = [
 [7,"math",3,"g7-math-construction","Construction of geometric figures"],[7,"math",3,"g7-math-2d","Geometry of 2D shapes"],[7,"math",3,"g7-math-transform","Transformation geometry"],
 [7,"math",4,"g7-math-area","Area and perimeter of 2D shapes"],[7,"math",4,"g7-math-volume","Surface area and volume of 3D objects"],[7,"math",4,"g7-math-data","Data handling"],
 [7,"his",1,"g7-his-mali","The Kingdom of Mali and the city of Timbuktu"],[7,"his",2,"g7-his-slavetrade","The Transatlantic slave trade"],[7,"his",3,"g7-his-cape","Colonisation of the Cape: 17th–18th centuries"],[7,"his",4,"g7-his-frontiers","Co-operation and conflict on the frontiers of the Cape Colony"],
+[7,"ns",1,"g7-ns-biosphere","The biosphere"],[7,"ns",1,"g7-ns-biodiversity","Biodiversity"],[7,"ns",1,"g7-ns-reproduction","Sexual reproduction"],[7,"ns",1,"g7-ns-variation","Variation"],
+[7,"ns",2,"g7-ns-materials","Properties of materials"],[7,"ns",2,"g7-ns-mixtures","Separating mixtures"],[7,"ns",2,"g7-ns-acids","Acids, bases and neutrals"],[7,"ns",2,"g7-ns-periodic","Introduction to the Periodic Table"],
+[7,"ns",3,"g7-ns-energy-sources","Sources of energy"],[7,"ns",3,"g7-ns-kinetic","Potential and kinetic energy"],[7,"ns",3,"g8-ns-heat","Heat transfer"],[7,"ns",3,"g7-ns-insulation","Insulation and energy saving"],[7,"ns",3,"g7-ns-surroundings","Energy transfer to surroundings"],[7,"ns",3,"g7-ns-grid","The national electricity supply system"],
+[7,"ns",4,"g7-ns-sun","The Sun and the Earth"],[7,"ns",4,"g7-ns-moon","The Moon and the Earth"],[7,"ns",4,"g7-ns-astronomy","Historical development of astronomy"],
 [7,"geo",1,"g7-geo-maps","Map skills"],[7,"geo",2,"g7-geo-hazards","Volcanoes, earthquakes and floods"],[7,"geo",3,"g7-geo-population","Population change and growth"],[7,"geo",4,"g7-geo-resources","Natural resources and conservation in South Africa"],
 
 /* ---------- Grade 8 ---------- */
@@ -55,3 +59,28 @@ const CURRICULUM = [
 })();
 /* Topics in the map for this grade that aren't written yet. */
 const comingSoon = grade => CURRICULUM.filter(([g,,,id])=>g===+grade && !TOPIC[id]).map(([g,subject,term,id,title])=>({id,grade:g,subject,term,title}));
+
+/* ---------- Subjects for every grade (CAPS phases) ---------- */
+Object.assign(SUBJECTS, {
+  ems:{name:"Economic and Management Sciences"}, tech:{name:"Technology"}, arts:{name:"Creative Arts"},
+  lifeskills:{name:"Life Skills"}, nst:{name:"Natural Sciences and Technology"},
+  mlit:{name:"Mathematical Literacy"}, phys:{name:"Physical Sciences"}, lifesci:{name:"Life Sciences"},
+  acc:{name:"Accounting"}, bus:{name:"Business Studies"}, econ:{name:"Economics"},
+  cat:{name:"Computer Applications Technology"}, egd:{name:"Engineering Graphics and Design"},
+  tour:{name:"Tourism"}, agri:{name:"Agricultural Sciences"}
+});
+function subjectsForGrade(g){
+  g = +g;
+  if(g <= 3) return ["eng","afr","math","lifeskills"];
+  if(g <= 6) return ["eng","afr","math","nst","his","geo","lifeskills"];
+  if(g <= 9) return ["eng","afr","math","ns","his","geo","lo","ems","tech","arts"];
+  return ["eng","afr","math","mlit","phys","lifesci","acc","bus","econ","geo","his","lo","cat","egd","tour","agri"];
+}
+function subjectName(s, g){
+  g = +g;
+  if(g >= 10 && s === "his") return "History";
+  if(g >= 10 && s === "geo") return "Geography";
+  return (SUBJECTS[s] || {name:s}).name;
+}
+const CURRICULUM_INDEX = Object.fromEntries(CURRICULUM.map((c,i)=>[c[3], i]));
+const curriculumIndex = id => CURRICULUM_INDEX[id] ?? 9999;
