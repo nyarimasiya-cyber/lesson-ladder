@@ -610,7 +610,10 @@ function periodStart(p){
   return d;
 }
 function evOf(a){
-  if(kindOf(a)==="write") return {at:a.at, kind:"write", label: a.mode==="own" ? "Wrote on her own" : "Traced", subject:"Writing", title:`Writing: ${a.label||""}`, score:""};
+  if(kindOf(a)==="write"){
+    const lab = {own:"Wrote on her own", trace:"Traced", spell:"Built and wrote a word", sentence:"Wrote a sentence", sound:"Letter sounds game"}[a.mode] || "Writing";
+    return {at:a.at, kind:"write", label:lab, subject:"Writing", title: a.mode==="sound" ? "Letter sounds" : `Writing: ${a.label||""}`, score: a.mode==="sound" ? `${a.score}/${a.total}` : ""};
+  }
   const t = TOPIC[a.topicId], k = a.stage ? a.stage : kindOf(a), sub = t ? sname(t.subject, t.grade) : "";
   const its = itemsOf(a), sc = its.length ? `${its.filter(x=>x.ok).length}/${its.length}` : (a.total ? `${a.score}/${a.total} first try` : "");
   const label = {notes:"Read the notes", practice:"Did practice", topic:"Test", chapter:"Chapter test", review:"Weak-spot practice", mock:"Mock exam"}[k] || "Activity";
@@ -706,6 +709,7 @@ function render(){
   else if(S.view==="mocks") html += vMocks();
   else if(S.view==="wsec") html += vWriteSection();
   else if(S.view==="write") html += vWriteItem();
+  else if(S.view==="sounds") html += vSounds();
   else if(S.view==="mockintro") html += vMockIntro();
   else if(S.view==="practicedone") html += vPracticeDone();
   else html += vHome();

@@ -80,7 +80,12 @@ const WR_PATTERNS = [
 const WR_PIC = {a:["apple","🍎"],b:["ball","⚽"],c:["cat","🐱"],d:["dog","🐶"],e:["egg","🥚"],f:["fish","🐟"],g:["goat","🐐"],h:["hat","🎩"],i:["insect","🐞"],j:["juice","🧃"],k:["kite","🪁"],l:["lion","🦁"],m:["moon","🌙"],n:["nose","👃"],o:["orange","🍊"],p:["pig","🐷"],q:["queen","👸"],r:["rabbit","🐰"],s:["sun","☀️"],t:["tree","🌳"],u:["umbrella","☂️"],v:["van","🚐"],w:["water","💧"],x:["box","📦"],y:["yellow","💛"],z:["zebra","🦓"]};
 const WR_NUM = ["zero","one","two","three","four","five","six","seven","eight","nine"];
 const WR_WORDS = [["cat","🐱"],["dog","🐶"],["sun","☀️"],["hat","🎩"],["pig","🐷"],["bus","🚌"],["mom","👩"],["dad","👨"],["big","🐘"],["love","❤️"]];
-const WR_SECTIONS = [["patterns","Patterns","✏️"],["letters","Letters","🔤"],["numbers","Numbers","🔢"],["name","My name","😊"],["words","Words","📖"]];
+const WR_CVC = [["cat","🐱"],["dog","🐶"],["sun","☀️"],["pig","🐷"],["hat","🎩"],["bed","🛏️"],["cup","☕"],["bus","🚌"],["fox","🦊"],["hen","🐔"],["map","🗺️"],["pen","🖊️"],["box","📦"],["bag","👜"],["leg","🦵"],["net","🥅"],["rat","🐀"],["web","🕸️"],["van","🚐"],["bat","🦇"],["log","🪵"],["six","6️⃣"],["ten","🔟"],["red","🔴"]];
+const WR_SIGHT = ["I","a","the","see","can","my","is","like","go","we","and","it","to","me","you","look"];
+const WR_SENT = [["I see a cat.","🐱"],["I can run.","🏃"],["My dog is big.","🐶"],["I like the sun.","☀️"],["We can go.","🚶"],["Look at me.","🙋"],["The pig is pink.","🐷"],["I see a red bus.","🚌"],["Mom can see me.","👩"],["I like my hat.","🎩"],["The fox can run.","🦊"],["I love you.","❤️"]];
+const WR_START = [["patterns","Patterns","✏️"],["letters","Small letters","🔤"],["numbers","Numbers","🔢"],["name","My name","😊"]];
+const WR_NEXT = [["capitals","Capital letters","🔠"],["sounds","Letter sounds","👂"],["sight","Sight words","👀"],["spell","Spell words","🧩"],["sentences","Sentences","📝"]];
+const WR_SECTIONS = [...WR_START, ...WR_NEXT, ["words","Words","📖"]];
 
 const gradeLabel = g => +g===0 ? "R" : g;
 const isGradeR = l => l && +l.grade===0;
@@ -90,6 +95,7 @@ function glyphFor(ch){
   if(WR_LOWER[ch]) return {path:WR_LOWER[ch], l:/[mw]/.test(ch)?22:30, r:/[mw]/.test(ch)?78:70};
   if(WR_UPPER[ch]) return {path:WR_UPPER[ch], l:/[MW]/.test(ch)?22:28, r:/[MW]/.test(ch)?78:72};
   if(WR_DIGITS[ch]) return {path:WR_DIGITS[ch], l:28, r:72};
+  if(ch===".") return {path:"M50 88 L50 89", l:44, r:56};
   return null;
 }
 function nameText(l){ const s = (l.name||"").replace(/[^A-Za-z]/g,""); return s ? s[0].toUpperCase()+s.slice(1).toLowerCase() : ""; }
@@ -99,6 +105,11 @@ function wItem(key, l){
   if(type==="l"){ const [w,e] = WR_PIC[val]; return {key, type, label:val, emoji:e, say:`This is the letter ${val}. ${val} for ${w}.`, glyphs:[glyphFor(val)]}; }
   if(type==="n"){ return {key, type, label:val, emoji:"", say:`This is the number ${WR_NUM[+val]}.`, glyphs:[glyphFor(val)]}; }
   if(type==="w"){ const w = WR_WORDS.find(x=>x[0]===val); return {key, type, label:val, emoji:w[1], say:`This word says ${val}. ${[...val].join(", ")}.`, glyphs:[...val].map(glyphFor)}; }
+  if(type==="u"){ const [w,e] = WR_PIC[val.toLowerCase()]; return {key, type, label:val, emoji:e, say:`This is capital ${val}. Capital ${val} for ${w}.`, glyphs:[glyphFor(val)]}; }
+  if(type==="s"){ return {key, type, label:val, emoji:"", say:`This word is ${val}.`, glyphs:[...val].map(glyphFor)}; }
+  if(type==="c"){ const w = WR_CVC.find(x=>x[0]===val); return {key, type, label:val, emoji:w[1], word:val, say:`${val}. Let's spell ${val}.`, glyphs:[...val].map(glyphFor)}; }
+  if(type==="t"){ const [sent,e] = WR_SENT[+val], words = sent.split(" "), wi = Math.min(S.wword||0, words.length-1);
+    return {key, type, label:sent, emoji:e, words, say:sent, glyphs:[...words[wi]].map(glyphFor)}; }
   if(type==="name"){ const n = nameText(l); return {key, type, label:n, emoji:"😊", say:`This is your name. ${n}. ${[...n.toLowerCase()].join(", ")}.`, glyphs:[...n].map(glyphFor).filter(Boolean)}; }
   return null;
 }
@@ -108,6 +119,11 @@ function sectionKeys(sec, l){
   if(sec==="numbers") return Object.keys(WR_DIGITS).map(c=>"n:"+c);
   if(sec==="words") return WR_WORDS.map(w=>"w:"+w[0]);
   if(sec==="name") return nameText(l) ? ["name"] : [];
+  if(sec==="capitals") return Object.keys(WR_UPPER).map(c=>"u:"+c);
+  if(sec==="sight") return WR_SIGHT.map(w=>"s:"+w);
+  if(sec==="spell") return WR_CVC.map(w=>"c:"+w[0]);
+  if(sec==="sentences") return WR_SENT.map((_,i)=>"t:"+i);
+  if(sec==="sounds") return Object.keys(WR_PIC).filter(c=>c!=="x").map(c=>"f:"+c);
   return [];
 }
 function layout(item){
@@ -121,7 +137,12 @@ function layout(item){
 const wRecs = lid => S.attempts.filter(a=>a.learnerId===lid && a.kind==="write");
 function wStars(lid, key){
   const r = wRecs(lid).filter(a=>a.item===key);
+  if(r.some(a=>a.mode==="spell"||a.mode==="sentence")) return 2;
   return (r.some(a=>a.mode==="trace") ? 1 : 0) + (r.some(a=>a.mode==="own") ? 1 : 0);
+}
+function soundsKnown(lid){
+  const last = {}; wRecs(lid).filter(a=>a.mode==="sound" && a.res).sort((a,b)=>a.at-b.at).forEach(a=>Object.assign(last, a.res));
+  return last;
 }
 const starTxt = n => `<span class="wstars" aria-label="${n} of 2 stars">${"⭐".repeat(n)}${"<span class='dim'>⭐</span>".repeat(2-n)}</span>`;
 function wSave(mode){
@@ -150,42 +171,53 @@ function vWriteHome(){
   const l = learner();
   return `<section class="hello"><span class="eyebrow">Grade R</span><h1>Hi ${esc(l.name)}! Let's write ✏️</h1></section>
   <button class="wbig say" data-act="w-say" data-text="Hi ${esc(l.name)}! Let's write. Pick what you want to practise.">🔊 Listen</button>
-  <div class="wsecs">${WR_SECTIONS.map(([id,label,em])=>{
-    const keys = sectionKeys(id,l), done = keys.filter(k=>wStars(l.id,k)>0).length;
-    return `<button class="wsec" data-act="w-sec" data-s="${id}"><span class="em">${em}</span><b>${label}</b><span class="muted">${keys.length?`${done} of ${keys.length}`:""}</span></button>`;}).join("")}</div>`;
+  ${secTiles(l, WR_NEXT, "Next level 🚀")}
+  ${secTiles(l, WR_START, "Warm up")}`;
+}
+function secDone(l, id){ const keys = sectionKeys(id,l); if(id==="sounds"){ const k = soundsKnown(l.id); return [keys.filter(x=>k[x.slice(2)]).length, keys.length]; } return [keys.filter(k=>wStars(l.id,k)>0).length, keys.length]; }
+function secTiles(l, list, title){
+  return `<h2 class="h2s">${title}</h2><div class="wsecs">${list.map(([id,label,em])=>{ const [d,n] = secDone(l,id);
+    return `<button class="wsec" data-act="${id==="sounds"?"w-sounds":"w-sec"}" data-s="${id}"><span class="em">${em}</span><b>${label}</b><span class="muted">${n?`${d} of ${n}`:""}</span></button>`;}).join("")}</div>`;
 }
 function vWriteSection(){
   const l = learner(), sec = S.wsec, info = WR_SECTIONS.find(x=>x[0]===sec), keys = sectionKeys(sec,l);
   return `${crumbs([{act:"home",label:"Writing"},{label:info[1]}])}
   <h1 class="pagetitle">${info[2]} ${info[1]}</h1>
-  ${keys.length?`<div class="wgrid ${sec==="words"||sec==="name"||sec==="patterns"?"wide":""}">${keys.map(k=>{ const it = wItem(k,l);
-    return `<button class="witem" data-act="w-item" data-k="${k}" aria-label="${esc(it.label)}">${smallGlyph(it)}${it.emoji?`<span class="em">${it.emoji}</span>`:""}${starTxt(wStars(l.id,k))}</button>`;}).join("")}</div>`
+  ${sec==="spell"?`<p class="muted" style="margin:0 0 12px">Tap a picture. Listen to the word, build it with letters, then write it.</p>`:sec==="sentences"?`<p class="muted" style="margin:0 0 12px">Listen to the sentence, put the words in order, then write it word by word.</p>`:""}
+  ${keys.length?`<div class="wgrid ${["words","name","patterns","sight"].includes(sec)?"wide":""} ${sec==="sentences"?"one":""}">${keys.map(k=>{ const it = wItem(k,l);
+    const face = it.type==="c" ? `<span class="em big">${it.emoji}</span>` : it.type==="t" ? `<span class="em big">${it.emoji}</span><span class="stext">${esc(it.label)}</span>` : smallGlyph(it)+(it.emoji?`<span class="em">${it.emoji}</span>`:"");
+    return `<button class="witem" data-act="w-item" data-k="${k}" aria-label="${esc(it.type==="c"?"picture word":it.label)}">${face}${starTxt(wStars(l.id,k))}</button>`;}).join("")}</div>`
   : `<div class="empty">Add letters to the learner's name in the parent area to practise it.</div>`}`;
 }
 function vWriteItem(){
   const l = learner(), it = wItem(S.witem, l); if(!it) return vWriteHome();
+  const task = it.type==="c" || it.type==="t";
+  if(task && S.wphase!=="write") return vBuild(it);
+  if(task) S.wmode = "own";
   const mode = S.wmode || "watch", lay = layout(it), keys = sectionKeys(S.wsec,l), idx = keys.indexOf(S.witem);
   const info = WR_SECTIONS.find(x=>x[0]===S.wsec);
   const lines = `<line x1="0" x2="${lay.w}" y1="20" y2="20" class="ln"/><line x1="0" x2="${lay.w}" y1="55" y2="55" class="ln mid"/><line x1="0" x2="${lay.w}" y1="90" y2="90" class="ln base"/><line x1="0" x2="${lay.w}" y1="115" y2="115" class="ln"/>`;
-  const guide = mode==="own" ? "" : lay.parts.map(p=>`<g transform="translate(${p.tx} 0)"><path d="${p.path}" class="gw"/><path d="${p.path}" class="gd"/></g>`).join("");
+  const guide = mode==="own" ? lay.parts.map(p=>`<path d="${p.path}" transform="translate(${p.tx} 0)" class="ghost"/>`).join("") : lay.parts.map(p=>`<g transform="translate(${p.tx} 0)"><path d="${p.path}" class="gw"/><path d="${p.path}" class="gd"/></g>`).join("");
   const starts = mode==="trace" ? lay.parts.map(p=>strokes(p.path).map((s,i)=>{ const m=/M\s*([\d.]+)\s+([\d.]+)/.exec(s); return `<g class="sdot"><circle cx="${+m[1]+p.tx}" cy="${m[2]}" r="5"/><text x="${+m[1]+p.tx}" y="${+m[2]+2.2}">${i+1}</text></g>`; }).join("")).join("") : "";
   return `${crumbs([{act:"home",label:"Writing"},{act:"w-sec",data:`data-s="${S.wsec}"`,label:info[1]},{label:it.label}])}
-  <div class="whead"><span class="wlabel">${esc(it.label)} ${it.emoji}</span>${starTxt(wStars(l.id,S.witem))}</div>
+  ${task ? `<div class="whead"><span class="wlabel">${it.emoji}</span>${starTxt(wStars(l.id,S.witem))}</div>
+    ${it.type==="t" ? `<div class="wsent">${it.words.map((w,i)=>`<span class="${i===(S.wword||0)?"cur":i<(S.wword||0)?"done":""}">${esc(w)}</span>`).join(" ")}</div>` : ""}
+    <p class="wtip" style="margin:0 0 8px">${it.type==="t"?`Write the word <b>${esc(it.words[S.wword||0])}</b> on the lines.`:`Now write <b>${esc(it.word)}</b> on the lines.`}</p>` : `<div class="whead"><span class="wlabel">${esc(it.label)} ${it.emoji}</span>${starTxt(wStars(l.id,S.witem))}</div>
   <div class="wsteps" role="tablist">
     <button role="tab" aria-selected="${mode==="watch"}" data-act="w-mode" data-m="watch">👀 Watch</button>
     <button role="tab" aria-selected="${mode==="trace"}" data-act="w-mode" data-m="trace">✏️ Trace</button>
-    <button role="tab" aria-selected="${mode==="own"}" data-act="w-mode" data-m="own">🌟 On my own</button></div>
-  ${mode==="own"?`<div class="wmodel"><span class="muted">Look:</span>${smallGlyph(it)}</div>`:""}
+    <button role="tab" aria-selected="${mode==="own"}" data-act="w-mode" data-m="own">🌟 On my own</button></div>`}
+  ${mode==="own" && !task?`<div class="wmodel"><span class="muted">Look:</span>${smallGlyph(it)}</div>`:""}
   <div class="wscroll"><div class="wpad" style="aspect-ratio:${lay.w}/120;min-width:${Math.min(lay.w*2.6, 340)}px;max-width:min(${lay.w*4.2}px, calc(56vh * ${(lay.w/120).toFixed(3)}))">
     <svg viewBox="0 0 ${lay.w} 120" id="wsvg">${lines}${guide}${starts}<g id="wanim"></g></svg>
     <canvas id="wcanvas" ${mode==="watch"?'style="pointer-events:none"':""}></canvas>
     <div class="wcheer" id="wcheer" hidden>⭐</div></div></div>
   <div class="wtools">
-    <button class="wbtn" data-act="w-say" data-text="${esc(it.say)}" aria-label="Listen">🔊</button>
+    <button class="wbtn" data-act="w-say" data-text="${esc(it.type==="t" ? it.words[S.wword||0].replace(".","") : it.say)}" aria-label="Listen">🔊</button>
     ${mode==="watch"?`<button class="wbtn go" data-act="w-play" aria-label="Show me">▶️</button><button class="wbtn" data-act="w-mode" data-m="trace" aria-label="Now you try">✏️ Now you</button>`
     :`<button class="wbtn" data-act="w-clear" aria-label="Clear">🧽</button><button class="wbtn go" data-act="w-done" aria-label="I'm done">✅</button>`}
-    ${idx<keys.length-1?`<button class="wbtn" data-act="w-item" data-k="${keys[idx+1]}" aria-label="Next">➡️</button>`:""}</div>
-  <p class="muted wtip">${mode==="watch"?"Press ▶️ to see how it's written.":mode==="trace"?"Start at the green dot 1. Follow the grey line with your finger.":"Now write it by yourself on the lines."}</p>`;
+    ${idx<keys.length-1 && !task?`<button class="wbtn" data-act="w-item" data-k="${keys[idx+1]}" aria-label="Next">➡️</button>`:""}</div>
+  <p class="muted wtip">${task?"When you finish, press ✅ to check.":mode==="watch"?"Press ▶️ to see how it's written.":mode==="trace"?"Start at the green dot 1. Follow the grey line with your finger.":"Now write it by yourself on the lines."}</p>`;
 }
 const strokes = d => d.split(/(?=M)/).map(s=>s.trim()).filter(Boolean);
 
@@ -245,11 +277,23 @@ function checkTrace(pressedDone){
 }
 function success(mode){
   if(W.busy) return; W.busy = true;
+  const it = wItem(S.witem, learner());
+  if(mode==="own") document.querySelectorAll("#wsvg .ghost").forEach(g=>g.classList.add("show"));
+  if(it && it.type==="t" && (S.wword||0) < it.words.length-1){
+    say(it.words[S.wword||0].replace(".","")+"! Next word.");
+    setTimeout(()=>{ W.busy=false; S.wword=(S.wword||0)+1; render(); }, 1700); return;
+  }
+  if(it && (it.type==="c" || it.type==="t")){
+    wSave(it.type==="c" ? "spell" : "sentence"); say(it.type==="t" ? `${it.label} You wrote a whole sentence!` : `${it.word}! Well done!`);
+    const ch = document.getElementById("wcheer"); if(ch) ch.hidden = false;
+    setTimeout(()=>{ W.busy=false; const keys = sectionKeys(S.wsec, learner()), i = keys.indexOf(S.witem);
+      if(i < keys.length-1) openItem(keys[i+1]); else go("wsec"); }, 2300); return;
+  }
   wSave(mode);
   const msgs = ["Well done!","Super!","Great writing!","You did it!","Wow, beautiful!"];
   say(msgs[Math.floor(Math.random()*msgs.length)]);
   const ch = document.getElementById("wcheer"); if(ch){ ch.hidden = false; }
-  setTimeout(()=>{ W.busy=false; if(mode==="trace"){ S.wmode="own"; } render(); setTimeout(padSetup,0); }, 1600);
+  setTimeout(()=>{ W.busy=false; if(mode==="trace"){ S.wmode="own"; } render(); }, mode==="own" ? 2200 : 1600);
 }
 
 /* Watch: draw each stroke in order with a moving pencil dot. */
@@ -273,13 +317,97 @@ function playDemo(){
   next();
 }
 
+function openItem(k){
+  S.witem = k; S.wmode = "watch"; S.wphase = "build"; S.wword = 0; S.wbuilt = []; S.wtiles = null;
+  const it = wItem(k, learner());
+  go("write");
+  if(it.type==="c" || it.type==="t") setTimeout(()=>say(it.type==="c" ? `${it.word}. Can you build the word ${it.word}?` : `${it.label} Put the words in the right order.`), 80);
+  else setTimeout(()=>{ padSetup(); playDemo(); }, 60);
+}
+
+/* ----- build a word from letter tiles, or a sentence from word cards ----- */
+function tilesFor(it){
+  if(S.wtiles) return S.wtiles;
+  let tiles;
+  if(it.type==="c"){ const pool = "abcdefghijklmnoprstuvwy".split("").filter(c=>!it.word.includes(c)); const extra = shuffle(pool).slice(0,2); tiles = shuffle([...it.word, ...extra]); }
+  else tiles = shuffle(it.words.slice());
+  return (S.wtiles = tiles.map(v=>({v, used:false})));
+}
+function vBuild(it){
+  const target = it.type==="c" ? [...it.word] : it.words, tiles = tilesFor(it), built = S.wbuilt || [];
+  return `${crumbs([{act:"home",label:"Writing"},{act:"w-sec",data:`data-s="${S.wsec}"`,label:WR_SECTIONS.find(x=>x[0]===S.wsec)[1]},{label:it.type==="c"?"Build it":"Sentence"}])}
+  <div class="wbuild">
+    <button class="wpic" data-act="w-say" data-text="${esc(it.type==="c"?it.word:it.label)}" aria-label="Listen">${it.emoji}<span>🔊</span></button>
+    <div class="wslots ${it.type==="t"?"words":""}">${target.map((v,i)=>`<span class="wslot ${built[i]!=null?"on":""}">${built[i]!=null?esc(target[i]):""}</span>`).join("")}</div>
+    <div class="wtiles ${it.type==="t"?"words":""}">${tiles.map((t,i)=>`<button class="wtile" data-act="w-tile" data-i="${i}" ${t.used?"disabled":""}>${esc(t.v)}</button>`).join("")}</div>
+    <p class="wtip">${it.type==="c"?"Listen, then tap the letters in order.":"Listen, then tap the words in order."}</p>
+  </div>`;
+}
+function pickTile(i){
+  const it = wItem(S.witem, learner()), target = it.type==="c" ? [...it.word] : it.words, tiles = tilesFor(it), t = tiles[i];
+  if(!t || t.used || W.busy) return;
+  S.wbuilt = S.wbuilt || [];
+  const need = target[S.wbuilt.length];
+  if(t.v===need){
+    t.used = true; S.wbuilt.push(t.v); render();
+    if(S.wbuilt.length===target.length){
+      W.busy = true; say(it.type==="c" ? `${[...it.word].join(", ")}. ${it.word}! Now write it.` : `${it.label} Now write it.`);
+      setTimeout(()=>{ W.busy=false; S.wphase="write"; S.wword=0; render(); }, 2200);
+    } else say(t.v.replace(".",""));
+  } else {
+    const el = document.querySelectorAll(".wtile")[i]; if(el){ el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+    say(it.type==="c" ? `Listen again. ${it.word}. What comes next?` : `Not that one. Listen: ${it.label}`);
+  }
+}
+
+/* ----- letter sounds game: which letter does the word start with? ----- */
+function startSounds(){
+  const l = learner(), known = soundsKnown(l.id), letters = Object.keys(WR_PIC).filter(c=>c!=="x");
+  const unknown = shuffle(letters.filter(c=>!known[c])), rest = shuffle(letters.filter(c=>known[c]));
+  const qs = [...unknown, ...rest].slice(0,10).map(c=>{ const opts = shuffle([c, ...shuffle(letters.filter(x=>x!==c)).slice(0,3)]); return {c, opts}; });
+  S.wsnd = {qs, i:0, res:{}, right:0, picked:null};
+  go("sounds"); setTimeout(()=>askSound(), 80);
+}
+function askSound(){ const q = S.wsnd.qs[S.wsnd.i], w = WR_PIC[q.c][0]; say(`${w}. Which letter does ${w} start with?`); }
+function answerSound(c){
+  const z = S.wsnd, q = z.qs[z.i]; if(!q || z.picked) return;
+  const w = WR_PIC[q.c][0], ok = c===q.c; z.picked = c;
+  if(!(q.c in z.res)) z.res[q.c] = ok;
+  if(ok) z.right++;
+  say(ok ? `Yes! ${w} starts with ${q.c}.` : `Not quite. ${w} starts with ${q.c}.`);
+  render();
+  setTimeout(()=>{ z.picked = null; z.i++; if(z.i>=z.qs.length) finishSounds(); else { render(); askSound(); } }, ok ? 1600 : 2600);
+}
+function finishSounds(){
+  const l = learner(), z = S.wsnd, id = uid();
+  const rec = {learnerId:l.id, kind:"write", item:"sounds", label:"Letter sounds", mode:"sound", res:z.res, score:z.right, total:z.qs.length, ok:true, at:Date.now()};
+  S.attempts.push({id, ...rec}); write("attempts", id, rec);
+  render(); say(`You got ${z.right} out of ${z.qs.length}!`);
+}
+function vSounds(){
+  const z = S.wsnd; if(!z) return vWriteHome();
+  if(z.i>=z.qs.length) return `${crumbs([{act:"home",label:"Writing"},{label:"Letter sounds"}])}
+    <div class="wdone"><div class="em">${z.right>=8?"🏆":z.right>=5?"🌟":"👍"}</div><h1>${z.right} out of ${z.qs.length}</h1>
+    <div class="wtools"><button class="wbtn go" data-act="w-sounds">🔁 Play again</button><button class="wbtn" data-act="home">🏠</button></div></div>`;
+  const q = z.qs[z.i], [w,e] = WR_PIC[q.c];
+  return `${crumbs([{act:"home",label:"Writing"},{label:"Letter sounds"}])}
+  <div class="qhead"><span class="eyebrow">Letter sounds</span><span class="eyebrow">${z.i+1} of ${z.qs.length}</span></div>
+  <div class="wbuild">
+    <button class="wpic" data-act="w-say" data-text="${w}. Which letter does ${w} start with?" aria-label="Listen">${e}<span>🔊</span></button>
+    <div class="wtiles big">${q.opts.map(c=>`<button class="wtile ${z.picked ? (c===q.c?"right":c===z.picked?"wrong":"") : ""}" data-act="w-sans" data-c="${c}" ${z.picked?"disabled":""}>${c}</button>`).join("")}</div>
+    <p class="wtip">Which letter does it start with?</p></div>`;
+}
+
 /* ----- events ----- */
 document.addEventListener("click", e=>{
   const b = e.target.closest("[data-act^='w-']"); if(!b) return;
   const act = b.dataset.act;
   if(act==="w-say"){ say(b.dataset.text); }
   else if(act==="w-sec"){ S.wsec = b.dataset.s; go("wsec"); }
-  else if(act==="w-item"){ S.witem = b.dataset.k; S.wmode = "watch"; go("write"); setTimeout(()=>{ padSetup(); playDemo(); }, 60); }
+  else if(act==="w-item"){ openItem(b.dataset.k); }
+  else if(act==="w-sounds"){ startSounds(); }
+  else if(act==="w-tile"){ pickTile(+b.dataset.i); }
+  else if(act==="w-sans"){ answerSound(b.dataset.c); }
   else if(act==="w-mode"){ S.wmode = b.dataset.m; W.busy = false; render(); setTimeout(()=>{ padSetup(); if(S.wmode==="watch") playDemo(); else say(S.wmode==="trace" ? "Now you try. Start at the green dot." : "Now write it all by yourself."); }, 30); }
   else if(act==="w-play"){ const g=document.getElementById("wanim"); if(g) g.innerHTML=""; W.busy=false; playDemo(); }
   else if(act==="w-clear"){ W.ink = []; drawInk(); }
@@ -298,5 +426,8 @@ function vPWriting(k){
       return `<span class="wchip ${n?"on":""}" title="${n===2?"Traced and written on her own":n?"Traced":"Not yet"}">${esc(it.label)} ${n?"⭐".repeat(n):""}</span>`; }).join("")}</div></details>`; };
   return `<h2 class="h2s">Writing</h2>
   <p class="muted" style="margin:0 0 10px">⭐ = traced correctly · ⭐⭐ = also written on her own. ${recs.length} writing exercises so far.</p>
-  ${sec("patterns","Patterns")}${sec("letters","Letters")}${sec("numbers","Numbers")}${sec("name","Name")}${sec("words","Words")}`;
+  ${(()=>{ const k2 = soundsKnown(k.id), keys = Object.keys(WR_PIC).filter(c=>c!=="x"), tried = keys.filter(c=>c in k2);
+    return `<details class="more"><summary>Letter sounds: knows ${tried.filter(c=>k2[c]).length} of ${keys.length}</summary><div class="wlist">${keys.map(c=>`<span class="wchip ${k2[c]?"on":c in k2?"miss":""}" title="${k2[c]?"Knows it":c in k2?"Got it wrong last time":"Not tried"}">${c}</span>`).join("")}</div></details>`; })()}
+  ${sec("spell","Spell words")}${sec("sentences","Sentences")}${sec("sight","Sight words")}${sec("capitals","Capital letters")}
+  ${sec("patterns","Patterns")}${sec("letters","Small letters")}${sec("numbers","Numbers")}${sec("name","Name")}`;
 }
