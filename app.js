@@ -422,8 +422,9 @@ function vParent(){
     return `<button class="tile" data-act="pkid" data-id="${esc(k.id)}"><b>${esc(k.name)}</b>
       <span class="muted">Grade ${k.grade} · last active ${lastAt?fmtDate(lastAt):"never"}</span>
       <span>${avgTxt(sm.avg)}</span>
+      <span class="muted">Today: ${(n=>n?`${n} activit${n===1?"y":"ies"}`:"nothing yet")(eventsIn(k.id,"today").length)}</span>
       <span class="muted">${sm.tried} topics tested${sm.weak?` · <span class="warnword">${sm.weak} weak spot${sm.weak===1?"":"s"}</span>`:""}</span></button>`;}).join("")}</div>
-  ${recent.length?`<h2 class="h2s">Recent activity</h2><div class="feed" style="margin-bottom:24px">${recent.map(a=>{const k=S.learners.find(x=>x.id===a.learnerId); const n=itemsOf(a).length, sc=itemsOf(a).filter(x=>x.ok).length; const what=a.kind==="review"?"Weak-spot practice":(TOPIC[a.topicId]?.title||"Test"); return `<div><span><b>${esc(k.name)}</b> · ${esc(what)}</span><span class="num">${sc}/${n}</span></div>`}).join("")}</div>`:""}
+  ${recent.length?`<h2 class="h2s">Recent activity</h2><div class="feed" style="margin-bottom:24px">${recent.map(a=>{const k=S.learners.find(x=>x.id===a.learnerId); const ev=evOf(a); return `<div><span><b>${esc(k.name)}</b> · ${esc(ev.title)}</span><span class="num">${ev.score||esc(ev.label)}</span></div>`}).join("")}</div>`:""}
   <details class="more" ${kids.length?"":"open"}><summary>Add a learner</summary>
   <form class="form" id="addForm">
     <label for="new-name">First name<input id="new-name" required maxlength="30" autocomplete="off"></label>
@@ -451,6 +452,10 @@ function vPChild(){
     <div class="stat"><div class="eyebrow">Best average</div><div class="v">${sm.avg==null?"–":sm.avg+"%"}</div><div class="muted" style="font-size:13px">${sm.avg==null?"":"Level "+level(sm.avg)[0]+" · "+level(sm.avg)[1]}</div></div>
     <div class="stat"><div class="eyebrow">Weak spots</div><div class="v">${sm.weak}</div><div class="muted" style="font-size:13px">${fixedCount(k.id)} fixed</div></div>
   </div>
+  <h2 class="h2s">What ${esc(k.name)} did</h2>
+  <div class="tiles periods">${PERIODS.map(([p,label])=>{ const ev=eventsIn(k.id,p), days=new Set(ev.map(e=>dayKey(e.at))).size;
+    return `<button class="tile" data-act="pper" data-p="${p}"><b>${label}</b><span class="muted">${ev.length?`${ev.length} activit${ev.length===1?"y":"ies"} · ${days} day${days===1?"":"s"}`:"Nothing yet"}</span></button>`;}).join("")}</div>
+  <h2 class="h2s">Subjects</h2>
   <div class="tiles">${subs.map(s=>{
     const x = kidSummary(k, mine.filter(t=>t.subject===s));
     return `<button class="tile" data-act="psubj" data-s="${s}"><b>${esc(sname(s,k.grade))}</b>
@@ -496,6 +501,102 @@ function vPTerm(){
     </div>`;}).join("")}</div>`;
 }
 
+/* ---------- activity by day / week / month / term ---------- */
+/* 2026 public-school terms (DBE calendar). Outside a term, "This term" means the most recent one. */
+const SCHOOL_TERMS = [["2026-01-14","2026-03-27"],["2026-04-08","2026-06-26"],["2026-07-21","2026-09-23"],["2026-10-06","2026-12-09"]];
+const PERIODS = [["today","Today"],["week","This week"],["month","This month"],["term","This term"]];
+const pad = n => String(n).padStart(2,"0");
+const dayKey = t => { const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const keyDate = k => { const [y,m,d]=k.split("-").map(Number); return new Date(y,m-1,d); };
+const dayLabel = k => keyDate(k).toLocaleDateString("en-ZA",{weekday:"short",day:"numeric",month:"short"});
+const timeOf = t => new Date(t).toLocaleTimeString("en-ZA",{hour:"2-digit",minute:"2-digit"});
+function periodStart(p){
+  const now = new Date(), d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if(p==="week"){ d.setDate(d.getDate()-((d.getDay()+6)%7)); return d; }
+  if(p==="month"){ d.setDate(1); return d; }
+  if(p==="term"){
+    const today = dayKey(now); let start = null;
+    SCHOOL_TERMS.forEach(([s])=>{ if(s<=today) start=s; });
+    if(start) return keyDate(start);
+    d.setDate(1); return d;   // before the first listed term
+  }
+  return d;
+}
+function evOf(a){
+  const t = TOPIC[a.topicId], k = a.stage ? a.stage : kindOf(a), sub = t ? sname(t.subject, t.grade) : "";
+  const its = itemsOf(a), sc = its.length ? `${its.filter(x=>x.ok).length}/${its.length}` : (a.total ? `${a.score}/${a.total} first try` : "");
+  const label = {notes:"Read the notes", practice:"Did practice", topic:"Test", chapter:"Chapter test", review:"Weak-spot practice"}[k] || "Activity";
+  return {at:a.at, kind:k, label, subject: k==="review" ? "Mixed subjects" : sub, title: k==="review" ? "Weak-spot practice" : (t?.title || ""), score: (k==="topic"||k==="chapter"||k==="review") ? sc : (k==="practice" && a.total ? sc : "")};
+}
+function eventsFor(lid){
+  const reads = S.reads.filter(r=>r.learnerId===lid && r.at && TOPIC[r.topicId]);
+  const atts = S.attempts.filter(a=>a.learnerId===lid && a.at);
+  return [...reads, ...atts].map(evOf).sort((a,b)=>b.at-a.at);
+}
+const eventsIn = (lid,p) => { const from = periodStart(p).getTime(); return eventsFor(lid).filter(e=>e.at>=from); };
+function daySummary(ev){
+  const n = k => ev.filter(e=>e.kind===k).length;
+  const tests = ev.filter(e=>e.kind==="topic");
+  const parts = [];
+  if(n("notes")) parts.push(`read ${n("notes")} topic${n("notes")===1?"":"s"}`);
+  if(n("practice")) parts.push(`${n("practice")} practice round${n("practice")===1?"":"s"}`);
+  if(tests.length){ const avg = Math.round(tests.reduce((s,e)=>{const [a,b]=e.score.split("/").map(Number); return s+a/b;},0)/tests.length*100); parts.push(`${tests.length} test${tests.length===1?"":"s"} · avg ${avg}%`); }
+  if(n("chapter")) parts.push(`${n("chapter")} chapter test${n("chapter")===1?"":"s"}`);
+  if(n("review")) parts.push(`${n("review")} weak-spot round${n("review")===1?"":"s"}`);
+  return parts.join(" · ");
+}
+
+function vPActivity(){
+  const k = pkid(); if(!k) return vParent();
+  const p = S.pper || "week", plabel = PERIODS.find(x=>x[0]===p)[1];
+  if(p==="today"){ S.pday = dayKey(Date.now()); return vPDay(true); }
+  const ev = eventsIn(k.id, p);
+  const byDay = {}; ev.forEach(e=>{ (byDay[dayKey(e.at)] = byDay[dayKey(e.at)] || []).push(e); });
+  // every day from the start of the period up to today, newest first
+  const days = []; for(let d=new Date(); d>=periodStart(p); d.setDate(d.getDate()-1)) days.push(dayKey(d));
+  const active = days.filter(d=>byDay[d]);
+  const tests = ev.filter(e=>e.kind==="topic"||e.kind==="chapter");
+  const avg = tests.length ? Math.round(tests.reduce((s,e)=>{const [a,b]=e.score.split("/").map(Number); return s+a/b;},0)/tests.length*100) : null;
+  const shown = p==="week" ? days : active;
+  return `${pcrumbs([{act:"pkid",data:`data-id="${esc(k.id)}"`,label:k.name},{label:plabel}])}
+  <h1 class="pagetitle">${esc(k.name)} · ${plabel}</h1>
+  ${periodChips(p)}
+  <div class="strip">
+    <div class="stat"><div class="eyebrow">Days worked</div><div class="v">${active.length}/${days.length}</div></div>
+    <div class="stat"><div class="eyebrow">Tests taken</div><div class="v">${tests.length}</div><div class="muted" style="font-size:13px">${avg==null?"":"average "+avg+"%"}</div></div>
+    <div class="stat"><div class="eyebrow">Notes &amp; practice</div><div class="v">${ev.filter(e=>e.kind==="notes"||e.kind==="practice").length}</div></div>
+  </div>
+  ${subjectBreakdown(ev, k)}
+  <h2 class="h2s">Day by day</h2>
+  ${shown.length?`<div class="topiclist">${shown.map(d=>byDay[d]
+    ? `<button class="tcard" data-act="pday" data-d="${d}"><span class="meta"><b>${dayLabel(d)}</b><span class="pill p-good">${byDay[d].length} activit${byDay[d].length===1?"y":"ies"}</span></span><span class="muted">${daySummary(byDay[d])}</span></button>`
+    : `<div class="tcard static idle"><span class="meta"><b>${dayLabel(d)}</b><span class="pill p-none">Nothing done</span></span></div>`).join("")}</div>`
+    : `<div class="empty">No work done yet in this period.</div>`}
+  ${p!=="week" && active.length<days.length ? `<p class="muted">${days.length-active.length} day${days.length-active.length===1?"":"s"} with nothing done are not listed.</p>` : ""}`;
+}
+function periodChips(p){
+  return `<div class="pchips" role="tablist">${PERIODS.map(([q,label])=>`<button class="pchip" role="tab" aria-selected="${q===p}" data-act="pper" data-p="${q}">${label}</button>`).join("")}</div>`;
+}
+function subjectBreakdown(ev, k){
+  const g = {}; ev.forEach(e=>{ if(e.kind!=="review") (g[e.subject] = g[e.subject] || []).push(e); });
+  const keys = Object.keys(g); if(!keys.length) return "";
+  return `<h2 class="h2s">By subject</h2><div class="feed stack">${keys.map(s=>`<div><b>${esc(s)}</b><span class="muted">${daySummary(g[s])}</span></div>`).join("")}</div>`;
+}
+function vPDay(isToday){
+  const k = pkid(); if(!k) return vParent();
+  const d = S.pday, ev = eventsFor(k.id).filter(e=>dayKey(e.at)===d);
+  const path = [{act:"pkid",data:`data-id="${esc(k.id)}"`,label:k.name}];
+  if(!isToday) path.push({act:"pper",data:`data-p="${S.pper||"week"}"`,label:PERIODS.find(x=>x[0]===(S.pper||"week"))[1]});
+  path.push({label: isToday ? "Today" : dayLabel(d)});
+  return `${pcrumbs(path)}
+  <h1 class="pagetitle">${esc(k.name)} · ${isToday?"Today":dayLabel(d)}</h1>
+  ${isToday?periodChips("today"):""}
+  ${ev.length ? `<p class="muted" style="margin:0 0 12px">${daySummary(ev)}</p>
+  <div class="timeline">${ev.map(e=>`<div><span class="num tm">${timeOf(e.at)}</span><span><b>${esc(e.label)}</b>${e.score?` <span class="pill ${scoreCls(e.score)}">${esc(e.score)}</span>`:""}<br><span class="muted">${esc(e.subject)}${e.title&&e.kind!=="review"?" · "+esc(e.title):""}</span></span></div>`).join("")}</div>`
+  : `<div class="empty">Nothing done ${isToday?"yet today":"on this day"}.</div>`}`;
+}
+const scoreCls = s => { const [a,b]=s.split("/").map(parseFloat); if(!b) return "p-none"; const r=a/b; return r>=.8?"p-good":r>=.5?"p-warn":"p-bad"; };
+
 function render(){
   nav();
   const app = document.getElementById("app");
@@ -504,7 +605,7 @@ function render(){
   if(S.mode==="loading") html += `<p class="muted">Loading…</p>`;
   else if(S.mode==="setup") html += vSetup();
   else if(S.mode==="nofamily") html += vAuth();
-  else if(["parent","pchild","psubject","pterm"].includes(S.view)) html += !S.parentOk ? vParentLock() : S.view==="pchild" ? vPChild() : S.view==="psubject" ? vPSubject() : S.view==="pterm" ? vPTerm() : vParent();
+  else if(["parent","pchild","psubject","pterm","pact","pday"].includes(S.view)) html += !S.parentOk ? vParentLock() : S.view==="pact" ? vPActivity() : S.view==="pday" ? vPDay(false) : S.view==="pchild" ? vPChild() : S.view==="psubject" ? vPSubject() : S.view==="pterm" ? vPTerm() : vParent();
   else if(S.view==="pick" || !learner()) html += vPick();
   else if(S.view==="subject") html += vSubject();
   else if(S.view==="term") html += vTerm();
@@ -551,11 +652,17 @@ function startReview(onlyTopic, onlySubj){
   S.quiz = {kind:"review", topicId:null, items, i:0, picked:null, checked:false, answers:[]};
   go("quiz");
 }
+/* Repeat reads and practice rounds are saved as attempts with no items, so they never affect scores or weak spots. */
+function logActivity(lid, tid, kind, extra={}){
+  const id = uid(), rec = {learnerId:lid, kind, topicId:tid, subject:TOPIC[tid].subject, at:Date.now(), ...extra};
+  S.attempts.push({id, ...rec}); write("attempts", id, rec);
+}
 function finishQuiz(){
   const z = S.quiz, l = learner();
   if(z.kind==="practice"){
     const tid = z.topicId, rid = `${l.id}__${tid}__practice`;
-    if(!hasRead(l.id,tid,"practice")){ S.reads.push({id:rid,learnerId:l.id,topicId:tid,stage:"practice"}); write("reads", rid, {learnerId:l.id, topicId:tid, stage:"practice", at:Date.now()}); }
+    if(!hasRead(l.id,tid,"practice")){ S.reads.push({id:rid,learnerId:l.id,topicId:tid,stage:"practice",at:Date.now()}); write("reads", rid, {learnerId:l.id, topicId:tid, stage:"practice", at:Date.now()}); }
+    else logActivity(l.id, tid, "practice", {score:z.firstTry, total:z.items.length});
     S.last = {first:z.firstTry, n:z.items.length}; go("practicedone"); return;
   }
   const items = z.items.map((it,i)=>({t:it.t, q:it.q, ok: z.answers[i]===getQ(it.t,it.q).a}));
@@ -586,6 +693,8 @@ document.addEventListener("click", async e=>{
   else if(act==="subject"){ if(b.dataset.s) S.subject=b.dataset.s; go("subject"); }
   else if(act==="term"){ S.term=+b.dataset.t; go("term"); }
   else if(act==="pkid"){ S.pkid=b.dataset.id; go("pchild"); }
+  else if(act==="pper"){ S.pper=b.dataset.p; go("pact"); }
+  else if(act==="pday"){ S.pday=b.dataset.d; go("pday"); }
   else if(act==="psubj"){ S.psub=b.dataset.s; go("psubject"); }
   else if(act==="pterm"){ S.pterm=+b.dataset.t; go("pterm"); }
   else if(act==="backterm"){ go(S.subject?"term":"home"); }
@@ -594,7 +703,8 @@ document.addEventListener("click", async e=>{
   else if(act==="step"){ S.step=b.dataset.step; go("topic"); }
   else if(act==="learned"){
     const tid=S.topicId;
-    if(l && !hasRead(l.id,tid)){ const rid=`${l.id}__${tid}`; S.reads.push({id:rid,learnerId:l.id,topicId:tid}); write("reads", rid, {learnerId:l.id, topicId:tid, stage:"notes", at:Date.now()}); }
+    if(l && !hasRead(l.id,tid)){ const rid=`${l.id}__${tid}`; S.reads.push({id:rid,learnerId:l.id,topicId:tid,stage:"notes",at:Date.now()}); write("reads", rid, {learnerId:l.id, topicId:tid, stage:"notes", at:Date.now()}); }
+    else if(l) logActivity(l.id, tid, "notes");
     S.step="practise"; go("topic");
   }
   else if(act==="practice"){ startPractice(S.topicId); }

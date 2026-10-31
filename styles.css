@@ -190,3 +190,14 @@ details.more summary{cursor:pointer;font-weight:700;min-height:28px}
 details.more[open] summary{margin-bottom:10px}
 details.more .form{border:0;padding:0;background:none}
 .tcard details.more{margin:0;padding:8px 12px;background:var(--bg)}
+/* activity views */
+.periods{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pchips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.pchip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;min-height:40px;font-weight:600}
+.pchip[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tcard.idle{opacity:.7;padding:12px 16px}
+.timeline{display:grid;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.timeline>div{display:flex;gap:14px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:flex-start}
+.timeline>div:last-child{border-bottom:0}
+.timeline .tm{color:var(--muted);min-width:44px;padding-top:2px}
+.feed.stack>div{display:grid;gap:2px;justify-content:start}
