@@ -159,7 +159,7 @@ function nav(){
   if(S.mode!=="ready"){ n.innerHTML = installEvt?`<button data-act="install">Install app</button>`:""; return; }
   n.innerHTML = `
     ${installEvt ? `<button data-act="install">Install app</button>` : ""}
-    ${l ? `<button data-act="home" aria-pressed="${!["parent","pick","parentlock"].includes(S.view)}">${esc(l.name)} · Gr ${l.grade}</button>` : ""}
+    ${l ? `<button data-act="home" aria-pressed="${!["parent","pick","parentlock"].includes(S.view)}">${esc(l.name)} · Gr ${gradeLabel(l.grade)}</button>` : ""}
     <button data-act="pick" aria-pressed="${S.view==="pick"}">${l?"Switch":"Learners"}</button>
     <button data-act="parent" aria-pressed="${S.view==="parent"||S.view==="parentlock"}">Parent</button>`;
 }
@@ -197,7 +197,7 @@ function vPick(){
   <section class="hello"><span class="eyebrow">CAPS-aligned learning</span><h1>Who's studying today?</h1>
   <p class="muted">Read the notes, then answer 10 questions. Questions you get wrong become weak spots to practise until you get them right.</p></section>
   ${list.length ? `<div class="learners">${list.map(l=>{const w=weakItems(l.id).length;return `
-    <button class="lcard" data-act="choose" data-id="${esc(l.id)}"><b>${esc(l.name)}</b><span class="muted">Grade ${l.grade} · ${attemptsFor(l.id).length} quizzes${w?` · ${w} weak spot${w===1?"":"s"}`:""}</span></button>`}).join("")}</div>`
+    <button class="lcard" data-act="choose" data-id="${esc(l.id)}"><b>${esc(l.name)}</b><span class="muted">Grade ${gradeLabel(l.grade)} · ${attemptsFor(l.id).length} ${isGradeR(l)?"activities":"quizzes"}${w?` · ${w} weak spot${w===1?"":"s"}`:""}</span></button>`}).join("")}</div>`
   : `<div class="empty" style="margin-bottom:20px">No learners yet. A parent can add each child in the <b>Parent</b> area.</div>`}
   ${installTip()}`;
 }
@@ -228,6 +228,7 @@ function crumbs(parts){
 
 function vHome(){
   const l = learner(); if(!l) return vPick();
+  if(isGradeR(l)) return vWriteHome();
   const mine = topicsFor(l);
   const done = mine.filter(t=>attemptsFor(l.id,t.id).length).length;
   const bests = mine.map(t=>status(l.id,t.id).best).filter(b=>b!=null);
@@ -505,15 +506,15 @@ function vParent(){
   <div class="tiles">${kids.map(k=>{
     const sm = kidSummary(k, topicsFor(k)); const all = attemptsFor(k.id); const lastAt = all.length ? all[all.length-1].at : null;
     return `<button class="tile" data-act="pkid" data-id="${esc(k.id)}"><b>${esc(k.name)}</b>
-      <span class="muted">Grade ${k.grade} · last active ${lastAt?fmtDate(lastAt):"never"}</span>
-      <span>${avgTxt(sm.avg)}</span>
+      <span class="muted">Grade ${gradeLabel(k.grade)} · last active ${lastAt?fmtDate(lastAt):"never"}</span>
+      <span>${isGradeR(k)?`Writing: ${wRecs(k.id).length} exercises`:avgTxt(sm.avg)}</span>
       <span class="muted">Today: ${(n=>n?`${n} activit${n===1?"y":"ies"}`:"nothing yet")(eventsIn(k.id,"today").length)}</span>
-      <span class="muted">${sm.tried} topics tested${sm.weak?` · <span class="warnword">${sm.weak} weak spot${sm.weak===1?"":"s"}</span>`:""}</span></button>`;}).join("")}</div>
+      ${isGradeR(k)?"":`<span class="muted">${sm.tried} topics tested${sm.weak?` · <span class="warnword">${sm.weak} weak spot${sm.weak===1?"":"s"}</span>`:""}</span>`}</button>`;}).join("")}</div>
   ${recent.length?`<h2 class="h2s">Recent activity</h2><div class="feed" style="margin-bottom:24px">${recent.map(a=>{const k=S.learners.find(x=>x.id===a.learnerId); const ev=evOf(a); return `<div><span><b>${esc(k.name)}</b> · ${esc(ev.title)}</span><span class="num">${ev.score||esc(ev.label)}</span></div>`}).join("")}</div>`:""}
   <details class="more" ${kids.length?"":"open"}><summary>Add a learner</summary>
   <form class="form" id="addForm">
     <label for="new-name">First name<input id="new-name" required maxlength="30" autocomplete="off"></label>
-    <label for="new-grade">Grade<select id="new-grade"><option value="7">Grade 7</option><option value="8" selected>Grade 8</option><option value="9">Grade 9</option></select></label>
+    <label for="new-grade">Grade<select id="new-grade"><option value="0">Grade R</option><option value="7">Grade 7</option><option value="8" selected>Grade 8</option><option value="9">Grade 9</option></select></label>
     <div><button class="btn" type="submit">Add learner</button></div>
   </form></details>
   <details class="more"><summary>Family code</summary>
@@ -531,17 +532,17 @@ function vPChild(){
   const mine = topicsFor(k), sm = kidSummary(k, mine);
   const subs = Object.keys(SUBJECTS).filter(s=>mine.some(t=>t.subject===s));
   return `${pcrumbs([{label:k.name}])}
-  <h1 class="pagetitle">${esc(k.name)} <span class="muted" style="font-size:18px">Grade ${k.grade}</span></h1>
-  <div class="strip">
+  <h1 class="pagetitle">${esc(k.name)} <span class="muted" style="font-size:18px">Grade ${gradeLabel(k.grade)}</span></h1>
+  ${isGradeR(k)?"":`<div class="strip">
     <div class="stat"><div class="eyebrow">Topics tested</div><div class="v">${sm.tried}/${sm.total}</div></div>
     <div class="stat"><div class="eyebrow">Best average</div><div class="v">${sm.avg==null?"–":sm.avg+"%"}</div><div class="muted" style="font-size:13px">${sm.avg==null?"":"Level "+level(sm.avg)[0]+" · "+level(sm.avg)[1]}</div></div>
     <div class="stat"><div class="eyebrow">Weak spots</div><div class="v">${sm.weak}</div><div class="muted" style="font-size:13px">${fixedCount(k.id)} fixed</div></div>
-  </div>
+  </div>`}
   <h2 class="h2s">What ${esc(k.name)} did</h2>
   <div class="tiles periods">${PERIODS.map(([p,label])=>{ const ev=eventsIn(k.id,p), days=new Set(ev.map(e=>dayKey(e.at))).size;
     return `<button class="tile" data-act="pper" data-p="${p}"><b>${label}</b><span class="muted">${ev.length?`${ev.length} activit${ev.length===1?"y":"ies"} · ${days} day${days===1?"":"s"}`:"Nothing yet"}</span></button>`;}).join("")}</div>
-  ${(()=>{ const ms = subs.filter(s=>mockAttempts(k.id,s).length); return `<h2 class="h2s">Mock exams</h2>${ms.length?`<div class="feed">${ms.map(s=>{const a=mockAttempts(k.id,s), best=Math.max(...a.map(pctOf)), last=a[a.length-1]; return `<div><span>${esc(sname(s,k.grade))}<br><span class="muted" style="font-size:13px">${[1,2,3,4].filter(p=>mockAttempts(k.id,s,p).length).length}/4 papers · ${a.length} tr${a.length===1?"y":"ies"} · last ${pctOf(last)}% on ${fmtDate(last.at).split(" ").slice(0,2).join(" ")}</span></span><span class="pill ${best>=50?"p-good":"p-bad"}">Best ${best}%</span></div>`;}).join("")}</div>`:`<p class="muted" style="margin:0">No mock exams written yet.</p>`}`; })()}
-  <h2 class="h2s">Subjects</h2>
+  ${isGradeR(k) ? vPWriting(k) : (()=>{ const ms = subs.filter(s=>mockAttempts(k.id,s).length); return `<h2 class="h2s">Mock exams</h2>${ms.length?`<div class="feed">${ms.map(s=>{const a=mockAttempts(k.id,s), best=Math.max(...a.map(pctOf)), last=a[a.length-1]; return `<div><span>${esc(sname(s,k.grade))}<br><span class="muted" style="font-size:13px">${[1,2,3,4].filter(p=>mockAttempts(k.id,s,p).length).length}/4 papers · ${a.length} tr${a.length===1?"y":"ies"} · last ${pctOf(last)}% on ${fmtDate(last.at).split(" ").slice(0,2).join(" ")}</span></span><span class="pill ${best>=50?"p-good":"p-bad"}">Best ${best}%</span></div>`;}).join("")}</div>`:`<p class="muted" style="margin:0">No mock exams written yet.</p>`}`; })()}
+  ${subs.length?`<h2 class="h2s">Subjects</h2>`:""}
   <div class="tiles">${subs.map(s=>{
     const x = kidSummary(k, mine.filter(t=>t.subject===s));
     return `<button class="tile" data-act="psubj" data-s="${s}"><b>${esc(sname(s,k.grade))}</b>
@@ -609,6 +610,7 @@ function periodStart(p){
   return d;
 }
 function evOf(a){
+  if(kindOf(a)==="write") return {at:a.at, kind:"write", label: a.mode==="own" ? "Wrote on her own" : "Traced", subject:"Writing", title:`Writing: ${a.label||""}`, score:""};
   const t = TOPIC[a.topicId], k = a.stage ? a.stage : kindOf(a), sub = t ? sname(t.subject, t.grade) : "";
   const its = itemsOf(a), sc = its.length ? `${its.filter(x=>x.ok).length}/${its.length}` : (a.total ? `${a.score}/${a.total} first try` : "");
   const label = {notes:"Read the notes", practice:"Did practice", topic:"Test", chapter:"Chapter test", review:"Weak-spot practice", mock:"Mock exam"}[k] || "Activity";
@@ -629,6 +631,7 @@ function daySummary(ev){
   if(n("practice")) parts.push(`${n("practice")} practice round${n("practice")===1?"":"s"}`);
   if(tests.length){ const avg = Math.round(tests.reduce((s,e)=>{const [a,b]=e.score.split("/").map(Number); return s+a/b;},0)/tests.length*100); parts.push(`${tests.length} test${tests.length===1?"":"s"} · avg ${avg}%`); }
   if(n("chapter")) parts.push(`${n("chapter")} chapter test${n("chapter")===1?"":"s"}`);
+  if(n("write")) parts.push(`${n("write")} writing exercise${n("write")===1?"":"s"}`);
   if(n("review")) parts.push(`${n("review")} weak-spot round${n("review")===1?"":"s"}`);
   ev.filter(e=>e.kind==="mock").forEach(e=>{ const [a,b]=e.score.split("/").map(Number); parts.push(`mock exam ${Math.round(a/b*100)}%`); });
   return parts.join(" · ");
@@ -701,15 +704,18 @@ function render(){
   else if(S.view==="quiz") html += vQuiz();
   else if(S.view==="result") html += vResult();
   else if(S.view==="mocks") html += vMocks();
+  else if(S.view==="wsec") html += vWriteSection();
+  else if(S.view==="write") html += vWriteItem();
   else if(S.view==="mockintro") html += vMockIntro();
   else if(S.view==="practicedone") html += vPracticeDone();
   else html += vHome();
   if(S.mode==="ready") html += `<p class="foot">${LOCAL?"Progress is saved on this device only. Once the online database is connected, it will sync between devices.":navigator.onLine?"Progress syncs to every device signed in to this family.":"You're offline. Results are kept on this device and sync when you reconnect."}</p>`;
   app.innerHTML = html;
+  if(S.view==="write" && typeof padSetup==="function") setTimeout(padSetup, 0);
   if(draft){ const i=document.getElementById("new-name"); if(i) i.value=draft; }
 }
 setInterval(()=>{ const el=document.getElementById("mocktime"); if(el && S.quiz && S.quiz.started) el.textContent = mm(Math.floor((Date.now()-S.quiz.started)/1000)); }, 1000);
-function softRender(){ if(S.view==="quiz"){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select")) { nav(); return; } render(); }
+function softRender(){ if(S.view==="quiz" || S.view==="write"){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select")) { nav(); return; } render(); }
 function go(view){ S.view=view; S.note=""; render(); window.scrollTo(0,0); }
 
 /* ---------- quizzes ---------- */
