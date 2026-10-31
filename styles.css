@@ -168,3 +168,15 @@ body{margin:0;min-height:100vh;padding-top:env(safe-area-inset-top,0px);padding-
 .fb.hint{background:var(--hi-soft)}
 .tcard.soon{background:transparent;border-style:dashed;cursor:default}
 .tcard.soon h3{color:var(--muted)}
+
+/* ---- subject → term → topic navigation ---- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:12px}
+.tile{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 16px;display:grid;gap:6px;min-height:92px;align-content:start}
+.tile:hover{border-color:var(--accent)}
+.tile b{font-family:var(--display);font-size:20px;line-height:1.2}
+.tile .muted{font-size:14px}
+.warnword{color:var(--warn);font-weight:700}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px;color:var(--muted);margin-bottom:10px}
+.crumbs .linkbtn{text-decoration:none}
+.pagetitle{font-size:clamp(26px,5vw,34px);margin-bottom:18px}
+.topiclist{display:grid;gap:12px;max-width:720px}

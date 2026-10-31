@@ -1,6 +1,6 @@
 /* Offline support: keeps the app and its notes available without internet.
    Change VERSION whenever you update any file so devices pick up the new copy. */
-const VERSION = "lesson-ladder-v9";
+const VERSION = "lesson-ladder-v10";
 const SHELL = ["./","./index.html","./styles.css","./config.js","./content.js","./content-extra.js","./content-grade7.js","./content-grade7-history.js","./content-grade7-maths-a.js","./content-grade7-maths-b.js","./content-grade7-geo.js","./content-grade7-ns.js","./content-g8-t4.js","./content-g9-t4.js","./curriculum.js","./app.js","./manifest.webmanifest",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/apple-touch-icon.png"];
 const LIBS = ["firebase-app-compat.js","firebase-auth-compat.js","firebase-firestore-compat.js"]

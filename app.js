@@ -178,7 +178,7 @@ function vAuth(){
   const join = S.authTab!=="new" && !LOCAL;
   if(LOCAL) S.authTab = "new";
   return `<div class="auth">
-  <section class="hello"><span class="eyebrow">CAPS · Grade 1–12</span><h1>${join?"Connect this device":"Start a new family"}</h1>
+  <section class="hello"><span class="eyebrow">CAPS-aligned learning</span><h1>${join?"Connect this device":"Start a new family"}</h1>
   <p class="muted">${LOCAL?"Choose a parent PIN, then add your child. Their results and the parent report are kept on this device.":join?"Type the family code shown in the parent area on the parent's phone. You only do this once per device.":"A parent does this once, on their own phone. You'll get a family code to type on the kids' PCs."}</p></section>
   ${LOCAL?`<p class="tip">This copy isn't connected to the online database yet, so progress is saved on this device only. Set up the family here, on the device the child uses.</p>`:`<div class="tabs"><button data-act="authtab" data-tab="join" aria-pressed="${join}">Join with family code</button><button data-act="authtab" data-tab="new" aria-pressed="${!join}">New family</button></div>`}
   <form class="form" id="authForm" novalidate>
@@ -194,7 +194,7 @@ function vAuth(){
 function vPick(){
   const list = S.learners.slice().sort((a,b)=>a.name.localeCompare(b.name));
   return `
-  <section class="hello"><span class="eyebrow">CAPS · Grade 1–12</span><h1>Who's studying today?</h1>
+  <section class="hello"><span class="eyebrow">CAPS-aligned learning</span><h1>Who's studying today?</h1>
   <p class="muted">Read the notes, then answer 10 questions. Questions you get wrong become weak spots to practise until you get them right.</p></section>
   ${list.length ? `<div class="learners">${list.map(l=>{const w=weakItems(l.id).length;return `
     <button class="lcard" data-act="choose" data-id="${esc(l.id)}"><b>${esc(l.name)}</b><span class="muted">Grade ${l.grade} · ${attemptsFor(l.id).length} quizzes${w?` · ${w} weak spot${w===1?"":"s"}`:""}</span></button>`}).join("")}</div>`
@@ -216,40 +216,67 @@ function weakPanel(l){
   </section>`;
 }
 
+/* Home → subject → term → topics. Only topics that are written are shown. */
+const topicOrder = t => [t.term || 0, typeof curriculumIndex==="function" ? curriculumIndex(t.id) : 0];
+const byTopicOrder = (a,b) => { const x=topicOrder(a), y=topicOrder(b); return x[0]-y[0] || x[1]-y[1]; };
+const sname = (s,g) => typeof subjectName==="function" ? subjectName(s, g) : SUBJECTS[s].name;
+function progressOf(lid, list){
+  const tried = list.filter(t=>attemptsFor(lid,t.id).length).length;
+  const weak = list.reduce((n,t)=>n+status(lid,t.id).weak,0);
+  return {tried, weak};
+}
+function crumbs(parts){
+  return `<nav class="crumbs" aria-label="Where you are">${parts.map((p,i)=>i<parts.length-1?`<button class="linkbtn" data-act="${p.act}" ${p.data||""}>${esc(p.label)}</button><span aria-hidden="true">›</span>`:`<span>${esc(p.label)}</span>`).join("")}</nav>`;
+}
+
 function vHome(){
   const l = learner(); if(!l) return vPick();
   const mine = topicsFor(l);
   const done = mine.filter(t=>attemptsFor(l.id,t.id).length).length;
   const bests = mine.map(t=>status(l.id,t.id).best).filter(b=>b!=null);
   const avg = bests.length ? Math.round(bests.reduce((a,b)=>a+b,0)/bests.length*10) : null;
-  const soon = typeof comingSoon==="function" ? comingSoon(l.grade) : [];
-  const gradeSubs = typeof subjectsForGrade==="function" ? subjectsForGrade(l.grade) : [];
-  const subs = Object.keys(SUBJECTS).filter(s=>gradeSubs.includes(s) || mine.some(t=>t.subject===s) || soon.some(t=>t.subject===s));
-  const order = t => [t.term || 0, typeof curriculumIndex==="function" ? curriculumIndex(t.id) : 0];
-  const byOrder = (a,b) => { const x=order(a), y=order(b); return x[0]-y[0] || x[1]-y[1]; };
-  const sname = s => typeof subjectName==="function" ? subjectName(s, l.grade) : SUBJECTS[s].name;
+  const subs = Object.keys(SUBJECTS).filter(s=>mine.some(t=>t.subject===s));
   return `
-  <section class="hello"><span class="eyebrow">Grade ${l.grade} · CAPS</span><h1>Hi ${esc(l.name)}, pick a topic</h1></section>
+  <section class="hello"><span class="eyebrow">Grade ${l.grade}</span><h1>Hi ${esc(l.name)}, pick a subject</h1></section>
   <div class="strip">
-    <div class="stat"><div class="eyebrow">Topics tried</div><div class="v">${done}/${mine.length}</div></div>
+    <div class="stat"><div class="eyebrow">Topics tried</div><div class="v">${done}</div></div>
     <div class="stat"><div class="eyebrow">Best average</div><div class="v">${avg==null?"–":avg+"%"}</div></div>
     <div class="stat"><div class="eyebrow">Weak spots fixed</div><div class="v">${fixedCount(l.id)}</div></div>
   </div>
   ${weakPanel(l)}
-  <div class="subjects">${subs.map(s=>{
-    const items = [...mine.filter(t=>t.subject===s), ...soon.filter(t=>t.subject===s).map(t=>({...t, soon:true}))].sort(byOrder);
-    return `
-    <section class="subj"><h2>${sname(s)}</h2>
-    ${items.length ? items.map(t=>{
-      if(t.soon) return `<div class="tcard soon"><span class="eyebrow">${t.term?`Term ${t.term}`:"Language"}</span><h3>${esc(t.title)}</h3><span class="meta"><span class="muted">Notes and questions on the way</span><span class="pill p-none">Coming soon</span></span></div>`;
-      const st=status(l.id,t.id);return `
-      <button class="tcard" data-act="topic" data-id="${t.id}">
-        <span class="eyebrow">${t.term?`Term ${t.term} · `:""}${t.strand}</span><h3>${t.title}</h3>
-        ${stepChips(l.id,t.id)}
-        <span class="meta"><span class="muted">${st.weak?`${st.weak} weak spot${st.weak===1?"":"s"} to fix`:"&nbsp;"}</span><span class="pill ${st.cls}">${st.label}</span></span>
-      </button>`}).join("")
-    : `<div class="tcard soon"><span class="eyebrow">Grade ${l.grade}</span><h3>Topics on the way</h3><span class="meta"><span class="muted">This subject's topics are being written</span><span class="pill p-none">Coming soon</span></span></div>`}
-    </section>`}).join("")}</div>`;
+  <div class="tiles">${subs.map(s=>{
+    const list = mine.filter(t=>t.subject===s), pr = progressOf(l.id, list);
+    return `<button class="tile" data-act="subject" data-s="${s}"><b>${esc(sname(s,l.grade))}</b>
+      <span class="muted">${pr.tried} tried${pr.weak?` · <span class="warnword">${pr.weak} weak spot${pr.weak===1?"":"s"}</span>`:""}</span></button>`;}).join("")}</div>`;
+}
+
+function vSubject(){
+  const l = learner(), s = S.subject;
+  const list = topicsFor(l).filter(t=>t.subject===s);
+  const terms = [...new Set(list.map(t=>t.term||0))].sort((a,b)=>a-b);
+  if(terms.length===1){ S.term = terms[0]; return vTerm(); }
+  return `${crumbs([{act:"home",label:"Subjects"},{label:sname(s,l.grade)}])}
+  <h1 class="pagetitle">${esc(sname(s,l.grade))}</h1>
+  <div class="tiles">${terms.map(term=>{
+    const tl = list.filter(t=>(t.term||0)===term), pr = progressOf(l.id, tl);
+    return `<button class="tile" data-act="term" data-t="${term}"><b>${term?`Term ${term}`:"All topics"}</b>
+      <span class="muted">${tl.length} topic${tl.length===1?"":"s"} · ${pr.tried} tried${pr.weak?` · <span class="warnword">${pr.weak} weak</span>`:""}</span></button>`;}).join("")}</div>`;
+}
+
+function vTerm(){
+  const l = learner(), s = S.subject, term = S.term;
+  const all = topicsFor(l).filter(t=>t.subject===s);
+  const list = all.filter(t=>(t.term||0)===term).sort(byTopicOrder);
+  const multi = new Set(all.map(t=>t.term||0)).size>1;
+  const label = term?`Term ${term}`:"Topics";
+  return `${crumbs(multi?[{act:"home",label:"Subjects"},{act:"subject",data:`data-s="${s}"`,label:sname(s,l.grade)},{label}]:[{act:"home",label:"Subjects"},{label:sname(s,l.grade)}])}
+  <h1 class="pagetitle">${esc(sname(s,l.grade))}${multi?` · ${label}`:""}</h1>
+  <div class="topiclist">${list.map(t=>{const st=status(l.id,t.id);return `
+    <button class="tcard" data-act="topic" data-id="${t.id}">
+      <span class="eyebrow">${t.strand}</span><h3>${t.title}</h3>
+      ${stepChips(l.id,t.id)}
+      <span class="meta"><span class="muted">${st.weak?`${st.weak} weak spot${st.weak===1?"":"s"} to fix`:"&nbsp;"}</span><span class="pill ${st.cls}">${st.label}</span></span>
+    </button>`}).join("")}</div>`;
 }
 
 /* ---------- a topic = four steps ---------- */
@@ -301,7 +328,7 @@ function vTopic(){
         :`<p class="tip">Do the 10-question test first to unlock the chapter test.</p><div><button class="btn ghost" data-act="step" data-step="test">Go to the test</button></div>`}</div>`;
   }
   return `<div class="narrow" style="margin:0 auto">
-  <button class="crumb" data-act="home">← All topics</button>
+  <button class="crumb" data-act="backterm">← Back to topics</button>
   <span class="eyebrow">Grade ${t.grade} · ${SUBJECTS[t.subject].name}${t.term?` · Term ${t.term}`:""}</span>
   <h1 style="font-size:clamp(28px,5vw,38px);margin:4px 0 16px">${t.title}</h1>
   ${tabs}${body}</div>`;
@@ -420,7 +447,7 @@ function vParent(){
   <form class="form" id="addForm" style="margin-bottom:24px">
     <strong>Add a learner</strong>
     <label for="new-name">First name<input id="new-name" required maxlength="30" autocomplete="off"></label>
-    <label for="new-grade">Grade<select id="new-grade">${Array.from({length:12},(_,i)=>`<option value="${i+1}"${i+1===8?" selected":""}>Grade ${i+1}</option>`).join("")}</select></label>
+    <label for="new-grade">Grade<select id="new-grade"><option value="7">Grade 7</option><option value="8" selected>Grade 8</option><option value="9">Grade 9</option></select></label>
     <div><button class="btn" type="submit">Add learner</button></div>
   </form>
   <div class="kid"><header><h2 style="font-size:20px">Family code</h2></header>
@@ -441,6 +468,8 @@ function render(){
   else if(S.mode==="nofamily") html += vAuth();
   else if(S.view==="parent") html += S.parentOk ? vParent() : vParentLock();
   else if(S.view==="pick" || !learner()) html += vPick();
+  else if(S.view==="subject") html += vSubject();
+  else if(S.view==="term") html += vTerm();
   else if(S.view==="topic") html += vTopic();
   else if(S.view==="quiz") html += vQuiz();
   else if(S.view==="result") html += vResult();
@@ -515,7 +544,11 @@ document.addEventListener("click", async e=>{
   else if(act==="pick"){ go("pick"); }
   else if(act==="parent"){ go("parent"); }
   else if(act==="choose"){ S.learnerId=b.dataset.id; pref.set("ll-learner",S.learnerId); go("home"); }
-  else if(act==="topic"){ S.topicId=b.dataset.id; S.step=null; if(l){ const st=stepState(l.id,S.topicId); S.step = !st.learn?"learn":!st.practise?"practise":!st.test?"test":"chapter"; } go("topic"); }
+  else if(act==="subject"){ if(b.dataset.s) S.subject=b.dataset.s; go("subject"); }
+  else if(act==="term"){ S.term=+b.dataset.t; go("term"); }
+  else if(act==="backterm"){ go(S.subject?"term":"home"); }
+  else if(act==="topic"){ const tt=TOPIC[b.dataset.id]; if(tt){ S.subject=tt.subject; S.term=tt.term||0; } }
+  if(act==="topic"){ S.topicId=b.dataset.id; S.step=null; if(l){ const st=stepState(l.id,S.topicId); S.step = !st.learn?"learn":!st.practise?"practise":!st.test?"test":"chapter"; } go("topic"); }
   else if(act==="step"){ S.step=b.dataset.step; go("topic"); }
   else if(act==="learned"){
     const tid=S.topicId;

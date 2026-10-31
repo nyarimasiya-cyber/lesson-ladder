@@ -1,7 +1,7 @@
 {
   "name": "Lesson Ladder",
   "short_name": "Lesson Ladder",
-  "description": "CAPS-aligned notes and 10-question quizzes for Grade 7 to 9, with a parent progress report.",
+  "description": "CAPS-aligned notes and quizzes with a parent progress report.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
