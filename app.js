@@ -204,15 +204,12 @@ function vPick(){
 
 function weakPanel(l){
   const groups = weakByTopic(l.id); const n = groups.reduce((s,g)=>s+g.items.length,0);
-  if(!n){
-    return attemptsFor(l.id).length ? `<div class="stat" style="margin-bottom:24px"><div class="eyebrow">Weak spots</div><p style="margin:4px 0 0">None right now. Every question you've answered is correct on your latest try.</p></div>` : "";
-  }
-  return `<section class="kid" style="margin-bottom:28px;border-color:var(--bad)">
-    <header><h2 style="font-size:22px">Your weak spots</h2><span class="pill p-bad">${n} question${n===1?"":"s"} to fix</span></header>
-    <p class="muted" style="margin:0">These are questions you got wrong on your last try. Practise them until they're right; each one drops off this list when you answer it correctly.</p>
-    <div class="feed">${groups.map(g=>`<div><span><b>${esc(g.topic.title)}</b> <span class="muted">· ${SUBJECTS[g.topic.subject].name}</span></span>
-      <span class="row" style="gap:12px"><span class="num">${g.items.length} to fix</span><button class="linkbtn" data-act="topic" data-id="${g.topic.id}">Re-read notes</button><button class="linkbtn" data-act="review" data-topic="${g.topic.id}">Practise</button></span></div>`).join("")}</div>
-    <div><button class="btn" data-act="review">Fix my weak spots (${Math.min(n,10)} questions)</button></div>
+  if(!n) return "";
+  const bySub = {}; groups.forEach(g=>{ bySub[g.topic.subject]=(bySub[g.topic.subject]||0)+g.items.length; });
+  return `<section class="weakbox">
+    <div class="row" style="justify-content:space-between;gap:10px"><b>Weak spots to fix</b><span class="pill p-bad">${n}</span></div>
+    <div class="feed">${Object.keys(bySub).map(s=>`<div><span>${esc(sname(s,l.grade))}</span><span class="row" style="gap:12px"><span class="num">${bySub[s]}</span><button class="linkbtn" data-act="review" data-subj="${s}">Practise</button></span></div>`).join("")}</div>
+    <div><button class="btn" data-act="review">Fix all my weak spots</button></div>
   </section>`;
 }
 
@@ -405,57 +402,98 @@ function vParentLock(){
   </form></div>`;
 }
 
+function kidSummary(k, list){
+  const bests = list.map(t=>status(k.id,t.id).best).filter(b=>b!=null);
+  const avg = bests.length ? Math.round(bests.reduce((a,b)=>a+b,0)/bests.length*10) : null;
+  const weak = list.reduce((n,t)=>n+status(k.id,t.id).weak,0);
+  return {tried:bests.length, total:list.length, avg, weak};
+}
+const avgTxt = a => a==null ? "No tests yet" : `${a}% · Level ${level(a)[0]}`;
+function pkid(){ return S.learners.find(x=>x.id===S.pkid); }
+function pcrumbs(extra){ return crumbs([{act:"parent",label:"Parent"}, ...extra]); }
+
 function vParent(){
   const kids = S.learners.slice().sort((a,b)=>a.name.localeCompare(b.name));
-  const recent = S.attempts.slice().sort((a,b)=>b.at-a.at).slice(0,10);
-  return `<section class="hello"><span class="eyebrow">Parent area</span><h1>Progress report</h1>
-  <p class="levels">CAPS achievement levels: 7 Outstanding 80–100% · 6 Meritorious 70–79 · 5 Substantial 60–69 · 4 Adequate 50–59 · 3 Moderate 40–49 · 2 Elementary 30–39 · 1 Not achieved 0–29.</p></section>
+  const recent = S.attempts.slice().sort((a,b)=>b.at-a.at).filter(a=>S.learners.some(k=>k.id===a.learnerId)).slice(0,5);
+  return `<section class="hello"><span class="eyebrow">Parent area</span><h1>Progress report</h1></section>
   ${!kids.length?`<div class="empty" style="margin-bottom:20px">No learners yet. Add each child below.</div>`:""}
-  ${kids.map(k=>{
-    const mine = topicsFor(k);
-    const bests = mine.map(t=>status(k.id,t.id).best).filter(b=>b!=null);
-    const avg = bests.length ? Math.round(bests.reduce((a,b)=>a+b,0)/bests.length*10) : null;
-    const reads = mine.filter(t=>hasRead(k.id,t.id)).length;
-    const all = attemptsFor(k.id); const lastAt = all.length ? all[all.length-1].at : null;
-    const weak = weakByTopic(k.id); const wn = weak.reduce((s,g)=>s+g.items.length,0);
-    return `<article class="kid"><header><h2>${esc(k.name)}</h2><span class="muted">Grade ${k.grade} · last active ${lastAt?fmtDate(lastAt):"never"}</span></header>
-    <div class="strip">
-      <div class="stat"><div class="eyebrow">Topics tried</div><div class="v">${bests.length}/${mine.length}</div></div>
-      <div class="stat"><div class="eyebrow">Notes read</div><div class="v">${reads}/${mine.length}</div></div>
-      <div class="stat"><div class="eyebrow">Best average</div><div class="v">${avg==null?"–":avg+"%"}</div></div>
-      <div class="stat"><div class="eyebrow">CAPS level</div><div class="v">${avg==null?"–":level(avg)[0]}</div><div class="muted" style="font-size:13px">${avg==null?"No quizzes yet":level(avg)[1]}</div></div>
-      <div class="stat"><div class="eyebrow">Weak spots</div><div class="v">${wn}</div><div class="muted" style="font-size:13px">${fixedCount(k.id)} fixed so far</div></div>
-    </div>
-    ${wn?`<div><h3 style="font-size:17px;margin-bottom:6px">Weak areas to attend to</h3><div class="miss">${weak.map(g=>`<div style="border-left-color:var(--warn)"><b>${esc(g.topic.title)}</b> <span class="muted">· ${SUBJECTS[g.topic.subject].name} · ${g.items.length} question${g.items.length===1?"":"s"} still wrong</span>
-      <ul style="margin:6px 0 0;padding-left:20px">${g.items.map(x=>{const q=getQ(g.topic.id,x.q);return `<li>${esc(q.q)} <span class="muted">(answer: ${esc(q.o[q.a])})</span></li>`}).join("")}</ul></div>`).join("")}</div>
-      <p class="muted" style="font-size:14px;margin:8px 0 0">${esc(k.name)} sees these on their home screen with a “Fix my weak spots” practice round.</p></div>`:""}
-    <div class="tbl"><table><thead><tr><th>Subject · topic</th><th>Learn</th><th>Practise</th><th>Test tries</th><th>Test best</th><th>Latest</th><th>Chapter test</th><th>Weak</th><th>Status</th></tr></thead><tbody>
-    ${mine.map(t=>{const a=attemptsFor(k.id,t.id), st=status(k.id,t.id), lt=a[a.length-1];return `<tr>
-      <td><span class="muted" style="font-size:13px">${SUBJECTS[t.subject].name}</span><br>${t.title}</td>
-      <td>${hasRead(k.id,t.id)?"Done":"–"}</td><td>${hasRead(k.id,t.id,"practice")?"Done":"–"}</td><td class="num">${a.length}</td>
-      <td class="num">${st.best!=null?st.best+"/10":"–"}</td>
-      <td class="num">${lt?`${lt.score}/10<br><span class="muted" style="font-size:13px">${fmtDate(lt.at)}</span>`:"–"}</td>
-      <td class="num">${chapterBest(k.id,t.id)!=null?chapterBest(k.id,t.id)+"/20":"–"}</td>
-      <td class="num">${st.weak||"–"}</td>
-      <td><span class="pill ${st.cls}">${st.label.split(" · ")[0]}</span></td></tr>`}).join("")}
-    </tbody></table></div>
-    <div class="tools">${S.confirmRemove===k.id
-      ? `<span>Remove ${esc(k.name)}? Their results are kept but hidden.</span><button class="btn ghost danger" data-act="remove" data-id="${esc(k.id)}">Yes, remove</button><button class="btn ghost" data-act="cancelremove">Cancel</button>`
-      : `<button class="btn ghost danger" data-act="askremove" data-id="${esc(k.id)}">Remove learner</button>`}</div>
-    </article>`}).join("")}
-  ${recent.length?`<h2 style="font-size:20px;margin:8px 0 10px">Recent activity</h2><div class="feed" style="margin-bottom:24px">${recent.map(a=>{const k=S.learners.find(x=>x.id===a.learnerId); if(!k) return ""; const n=itemsOf(a).length, sc=itemsOf(a).filter(x=>x.ok).length; const what=a.kind==="review"?"Weak-spot practice":(a.kind==="chapter"?"Chapter test · ":"Test · ")+(TOPIC[a.topicId]?.title||""); return `<div><span><b>${esc(k.name)}</b> · ${esc(what)}</span><span class="num">${sc}/${n} · ${fmtDate(a.at)}</span></div>`}).join("")}</div>`:""}
-  <form class="form" id="addForm" style="margin-bottom:24px">
-    <strong>Add a learner</strong>
+  <div class="tiles">${kids.map(k=>{
+    const sm = kidSummary(k, topicsFor(k)); const all = attemptsFor(k.id); const lastAt = all.length ? all[all.length-1].at : null;
+    return `<button class="tile" data-act="pkid" data-id="${esc(k.id)}"><b>${esc(k.name)}</b>
+      <span class="muted">Grade ${k.grade} · last active ${lastAt?fmtDate(lastAt):"never"}</span>
+      <span>${avgTxt(sm.avg)}</span>
+      <span class="muted">${sm.tried} topics tested${sm.weak?` · <span class="warnword">${sm.weak} weak spot${sm.weak===1?"":"s"}</span>`:""}</span></button>`;}).join("")}</div>
+  ${recent.length?`<h2 class="h2s">Recent activity</h2><div class="feed" style="margin-bottom:24px">${recent.map(a=>{const k=S.learners.find(x=>x.id===a.learnerId); const n=itemsOf(a).length, sc=itemsOf(a).filter(x=>x.ok).length; const what=a.kind==="review"?"Weak-spot practice":(TOPIC[a.topicId]?.title||"Test"); return `<div><span><b>${esc(k.name)}</b> · ${esc(what)}</span><span class="num">${sc}/${n}</span></div>`}).join("")}</div>`:""}
+  <details class="more" ${kids.length?"":"open"}><summary>Add a learner</summary>
+  <form class="form" id="addForm">
     <label for="new-name">First name<input id="new-name" required maxlength="30" autocomplete="off"></label>
     <label for="new-grade">Grade<select id="new-grade"><option value="7">Grade 7</option><option value="8" selected>Grade 8</option><option value="9">Grade 9</option></select></label>
     <div><button class="btn" type="submit">Add learner</button></div>
-  </form>
-  <div class="kid"><header><h2 style="font-size:20px">Family code</h2></header>
+  </form></details>
+  <details class="more"><summary>Family code</summary>
     <p class="muted" style="margin:0">Type this on a new device to connect it to your family. Keep it private.</p>
-    <div class="row"><span class="v" style="font-family:var(--display);font-weight:800;font-size:24px;letter-spacing:.06em">${showCode(S.code)}</span><button class="btn ghost" data-act="copycode">Copy</button></div></div>
+    <div class="row"><span class="v" style="font-family:var(--display);font-weight:800;font-size:24px;letter-spacing:.06em">${showCode(S.code)}</span><button class="btn ghost" data-act="copycode">Copy</button></div></details>
+  <details class="more"><summary>What the CAPS levels mean</summary>
+    <p class="levels" style="margin:0">7 Outstanding 80–100% · 6 Meritorious 70–79 · 5 Substantial 60–69 · 4 Adequate 50–59 · 3 Moderate 40–49 · 2 Elementary 30–39 · 1 Not achieved 0–29</p></details>
   <div class="tools"><button class="btn ghost" data-act="lockparent">Lock parent area</button>${S.confirmLeave
     ? `<span>Disconnect this device? You'll need the family code to connect it again.</span><button class="btn ghost danger" data-act="leave">Yes, disconnect</button><button class="btn ghost" data-act="cancelleave">Cancel</button>`
     : `<button class="btn ghost" data-act="askleave">Disconnect this device</button>`}</div>`;
+}
+
+function vPChild(){
+  const k = pkid(); if(!k) return vParent();
+  const mine = topicsFor(k), sm = kidSummary(k, mine);
+  const subs = Object.keys(SUBJECTS).filter(s=>mine.some(t=>t.subject===s));
+  return `${pcrumbs([{label:k.name}])}
+  <h1 class="pagetitle">${esc(k.name)} <span class="muted" style="font-size:18px">Grade ${k.grade}</span></h1>
+  <div class="strip">
+    <div class="stat"><div class="eyebrow">Topics tested</div><div class="v">${sm.tried}/${sm.total}</div></div>
+    <div class="stat"><div class="eyebrow">Best average</div><div class="v">${sm.avg==null?"–":sm.avg+"%"}</div><div class="muted" style="font-size:13px">${sm.avg==null?"":"Level "+level(sm.avg)[0]+" · "+level(sm.avg)[1]}</div></div>
+    <div class="stat"><div class="eyebrow">Weak spots</div><div class="v">${sm.weak}</div><div class="muted" style="font-size:13px">${fixedCount(k.id)} fixed</div></div>
+  </div>
+  <div class="tiles">${subs.map(s=>{
+    const x = kidSummary(k, mine.filter(t=>t.subject===s));
+    return `<button class="tile" data-act="psubj" data-s="${s}"><b>${esc(sname(s,k.grade))}</b>
+      <span class="muted">${x.tried}/${x.total} tested · ${x.avg==null?"no tests yet":x.avg+"%"}${x.weak?` · <span class="warnword">${x.weak} weak</span>`:""}</span></button>`;}).join("")}</div>
+  <div class="tools">${S.confirmRemove===k.id
+    ? `<span>Remove ${esc(k.name)}? Their results are kept but hidden.</span><button class="btn ghost danger" data-act="remove" data-id="${esc(k.id)}">Yes, remove</button><button class="btn ghost" data-act="cancelremove">Cancel</button>`
+    : `<button class="btn ghost danger" data-act="askremove" data-id="${esc(k.id)}">Remove learner</button>`}</div>`;
+}
+
+function vPSubject(){
+  const k = pkid(); if(!k) return vParent();
+  const s = S.psub, list = topicsFor(k).filter(t=>t.subject===s);
+  const terms = [...new Set(list.map(t=>t.term||0))].sort((a,b)=>a-b);
+  if(terms.length===1){ S.pterm = terms[0]; return vPTerm(); }
+  return `${pcrumbs([{act:"pkid",data:`data-id="${esc(k.id)}"`,label:k.name},{label:sname(s,k.grade)}])}
+  <h1 class="pagetitle">${esc(sname(s,k.grade))}</h1>
+  <div class="tiles">${terms.map(term=>{
+    const x = kidSummary(k, list.filter(t=>(t.term||0)===term));
+    return `<button class="tile" data-act="pterm" data-t="${term}"><b>${term?`Term ${term}`:"All topics"}</b>
+      <span class="muted">${x.tried}/${x.total} tested · ${x.avg==null?"no tests yet":x.avg+"%"}${x.weak?` · <span class="warnword">${x.weak} weak</span>`:""}</span></button>`;}).join("")}</div>`;
+}
+
+function vPTerm(){
+  const k = pkid(); if(!k) return vParent();
+  const s = S.psub, term = S.pterm;
+  const all = topicsFor(k).filter(t=>t.subject===s);
+  const list = all.filter(t=>(t.term||0)===term).sort(byTopicOrder);
+  const multi = new Set(all.map(t=>t.term||0)).size>1, label = term?`Term ${term}`:"Topics";
+  const path = [{act:"pkid",data:`data-id="${esc(k.id)}"`,label:k.name}];
+  if(multi) path.push({act:"psubj",data:`data-s="${s}"`,label:sname(s,k.grade)});
+  path.push({label: multi?label:sname(s,k.grade)});
+  const weakMap = {}; weakByTopic(k.id).forEach(g=>weakMap[g.topic.id]=g.items);
+  return `${pcrumbs(path)}
+  <h1 class="pagetitle">${esc(sname(s,k.grade))}${multi?` · ${label}`:""}</h1>
+  <div class="topiclist">${list.map(t=>{
+    const st = status(k.id,t.id), a = attemptsFor(k.id,t.id), lt = a[a.length-1], cb = chapterBest(k.id,t.id), w = weakMap[t.id]||[];
+    return `<div class="tcard static">
+      <span class="eyebrow">${t.strand}</span><h3>${t.title}</h3>
+      ${stepChips(k.id,t.id)}
+      <span class="muted" style="font-size:14px">Test: ${st.best!=null?`best ${st.best}/10, ${a.length} tr${a.length===1?"y":"ies"}`:"not yet"}${lt?` · last ${fmtDate(lt.at)}`:""} · Chapter test: ${cb!=null?cb+"/20":"not yet"}</span>
+      <span class="meta"><span class="muted">${w.length?`<span class="warnword">${w.length} weak spot${w.length===1?"":"s"}</span>`:"&nbsp;"}</span><span class="pill ${st.cls}">${st.label.split(" · ")[0]}</span></span>
+      ${w.length?`<details class="more"><summary>Questions still wrong</summary><ul style="margin:6px 0 0;padding-left:20px">${w.map(x=>{const q=getQ(t.id,x.q);return `<li>${esc(q.q)} <span class="muted">(answer: ${esc(q.o[q.a])})</span></li>`}).join("")}</ul></details>`:""}
+    </div>`;}).join("")}</div>`;
 }
 
 function render(){
@@ -466,7 +504,7 @@ function render(){
   if(S.mode==="loading") html += `<p class="muted">Loading…</p>`;
   else if(S.mode==="setup") html += vSetup();
   else if(S.mode==="nofamily") html += vAuth();
-  else if(S.view==="parent") html += S.parentOk ? vParent() : vParentLock();
+  else if(["parent","pchild","psubject","pterm"].includes(S.view)) html += !S.parentOk ? vParentLock() : S.view==="pchild" ? vPChild() : S.view==="psubject" ? vPSubject() : S.view==="pterm" ? vPTerm() : vParent();
   else if(S.view==="pick" || !learner()) html += vPick();
   else if(S.view==="subject") html += vSubject();
   else if(S.view==="term") html += vTerm();
@@ -499,10 +537,11 @@ function startChapter(tid){
   S.quiz = {kind:"chapter", topicId:tid, items, i:0, picked:null, checked:false, answers:[]};
   go("quiz");
 }
-function startReview(onlyTopic){
+function startReview(onlyTopic, onlySubj){
   const l = learner(); if(!l) return;
   let pool = weakItems(l.id);
   if(onlyTopic) pool = pool.filter(x=>x.t===onlyTopic);
+  if(onlySubj) pool = pool.filter(x=>TOPIC[x.t]?.subject===onlySubj);
   if(!pool.length) return;
   // most-missed topics first, then shuffle within the first 10
   const counts = {}; pool.forEach(x=>counts[x.t]=(counts[x.t]||0)+1);
@@ -546,6 +585,9 @@ document.addEventListener("click", async e=>{
   else if(act==="choose"){ S.learnerId=b.dataset.id; pref.set("ll-learner",S.learnerId); go("home"); }
   else if(act==="subject"){ if(b.dataset.s) S.subject=b.dataset.s; go("subject"); }
   else if(act==="term"){ S.term=+b.dataset.t; go("term"); }
+  else if(act==="pkid"){ S.pkid=b.dataset.id; go("pchild"); }
+  else if(act==="psubj"){ S.psub=b.dataset.s; go("psubject"); }
+  else if(act==="pterm"){ S.pterm=+b.dataset.t; go("pterm"); }
   else if(act==="backterm"){ go(S.subject?"term":"home"); }
   else if(act==="topic"){ const tt=TOPIC[b.dataset.id]; if(tt){ S.subject=tt.subject; S.term=tt.term||0; } }
   if(act==="topic"){ S.topicId=b.dataset.id; S.step=null; if(l){ const st=stepState(l.id,S.topicId); S.step = !st.learn?"learn":!st.practise?"practise":!st.test?"test":"chapter"; } go("topic"); }
@@ -564,7 +606,7 @@ document.addEventListener("click", async e=>{
     const tid = S.topicId || S.last?.topicId; S.topicId = tid;
     startTopicQuiz(tid);
   }
-  else if(act==="review"){ startReview(b.dataset.topic); }
+  else if(act==="review"){ startReview(b.dataset.topic, b.dataset.subj); }
   else if(act==="pickopt"){ if(!S.quiz.checked){ S.quiz.picked=+b.dataset.i; render(); } }
   else if(act==="check"){
     const z=S.quiz; if(z.picked==null) return;
