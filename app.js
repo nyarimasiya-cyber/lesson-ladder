@@ -716,7 +716,7 @@ function render(){
   else if(S.view==="mockintro") html += vMockIntro();
   else if(S.view==="practicedone") html += vPracticeDone();
   else html += vHome();
-  if(S.mode==="ready") html += `<p class="foot">${LOCAL?"Progress is saved on this device only. Once the online database is connected, it will sync between devices.":navigator.onLine?"Progress syncs to every device signed in to this family.":"You're offline. Results are kept on this device and sync when you reconnect."}</p>`;
+  if(S.mode==="ready") html += `<p class="foot">${LOCAL?"Progress is saved on this device only. Once the online database is connected, it will sync between devices.":navigator.onLine?`Progress syncs to every device signed in to this family. Family code ends in ‑${showCode(S.code).slice(-4)}.`:"You're offline. Results are kept on this device and sync when you reconnect."}</p>`;
   app.innerHTML = html;
   if(S.view==="write" && typeof padSetup==="function") setTimeout(padSetup, 0);
   if(draft){ const i=document.getElementById("new-name"); if(i) i.value=draft; }
