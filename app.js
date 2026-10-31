@@ -1,0 +1,601 @@
+/* Lesson Ladder app: family code, learners, notes, quizzes, weak-spot practice, parent report.
+   Data lives in Firebase Firestore under families/{familyCode}/{learners|attempts|reads}. */
+
+const S = {
+  mode: "loading",           // loading | setup | nofamily | ready
+  user: null, family: null,
+  learners: [], attempts: [], reads: [],
+  view: "home", learnerId: null, topicId: null, quiz: null, last: null,
+  note: "", authTab: "join", parentOk: false
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pref = { get(k){try{return localStorage.getItem(k)}catch{return null}}, set(k,v){try{localStorage.setItem(k,v)}catch{}}, del(k){try{localStorage.removeItem(k)}catch{}} };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const L = "ABCD";
+S.learnerId = pref.get("ll-learner");
+
+/* ---------- Firebase ---------- */
+let auth, fs, famRef, unsubs = [];
+const cfg = window.FIREBASE_CONFIG || {};
+const configured = cfg.apiKey && !cfg.apiKey.startsWith("PASTE");
+
+async function sha(text){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+/* No emails or passwords: each device signs in anonymously and joins a family by its secret family code.
+   The code is 12 random characters, so it can't be guessed; keep it private like a password. */
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const newCode = () => { const r = crypto.getRandomValues(new Uint32Array(12)); return [...r].map(n=>CODE_CHARS[n % CODE_CHARS.length]).join(""); };
+const cleanCode = s => String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+const showCode = c => c.match(/.{1,4}/g).join("-");
+
+/* Device-only mode: used until Firebase is connected. Same calls as Firestore, saved in this browser.
+   Progress then stays on this one device (the parent report works on the same device). */
+const LOCAL = !configured || typeof firebase === "undefined";
+function localStore(){
+  const KEY = "ll-local-db";
+  let store = {}; try{ store = JSON.parse(localStorage.getItem(KEY) || "{}"); }catch{}
+  const subs = new Set();
+  const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch{} subs.forEach(f=>f()); };
+  const docRef = path => ({
+    get: async () => ({ exists: path in store, data: () => store[path] }),
+    set: async d => { store[path] = JSON.parse(JSON.stringify(d)); setTimeout(save, 0); },
+    delete: async () => { delete store[path]; setTimeout(save, 0); },
+    collection: c => col(path + "/" + c),
+    onSnapshot(cb){ const f = () => cb({ exists: path in store, data: () => store[path] }); subs.add(f); setTimeout(f, 0); return () => subs.delete(f); }
+  });
+  const col = path => ({
+    doc: id => docRef(path + "/" + id),
+    onSnapshot(cb){
+      const f = () => cb({ docs: Object.keys(store).filter(k => k.startsWith(path + "/") && !k.slice(path.length + 1).includes("/")).map(k => ({ id: k.split("/").pop(), data: () => store[k] })) });
+      subs.add(f); setTimeout(f, 0); return () => subs.delete(f);
+    }
+  });
+  return { collection: col };
+}
+
+function startFirebase(){
+  if(LOCAL){
+    fs = localStore(); S.user = { uid: "this-device" };
+    const code = pref.get("ll-family");
+    if(code) openFamily(code); else { S.mode="nofamily"; render(); }
+    return;
+  }
+  firebase.initializeApp(cfg);
+  auth = firebase.auth(); fs = firebase.firestore();
+  fs.enablePersistence({synchronizeTabs:true}).catch(()=>{});   // offline use where the browser allows
+  auth.onAuthStateChanged(user=>{
+    S.user = user;
+    if(!user){ auth.signInAnonymously().catch(()=>{ S.note="Can't connect. Check your internet connection and reopen the app."; S.mode="nofamily"; render(); }); return; }
+    const code = pref.get("ll-family");
+    if(code) openFamily(code); else { S.mode="nofamily"; render(); }
+  });
+}
+function openFamily(code){
+  unsubs.forEach(u=>u()); unsubs=[];
+  S.code = code; S.learners=[]; S.attempts=[]; S.reads=[];
+  famRef = fs.collection("families").doc(code);
+  S.parentOk = pref.get("ll-parent-device")===code;
+  unsubs.push(famRef.onSnapshot(d=>{ S.family = d.exists ? d.data() : null; softRender(); }, onDbError));
+  ["learners","attempts","reads"].forEach(kind=>{
+    unsubs.push(famRef.collection(kind).onSnapshot(snap=>{
+      S[kind] = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      if(S.mode!=="ready"){ S.mode="ready"; render(); } else softRender();
+    }, onDbError));
+  });
+}
+function onDbError(e){ S.note = "Progress can't be loaded right now ("+(e && e.code || "error")+"). Check your internet connection."; render(); }
+
+/* Writes are queued offline by Firestore and sync when the device is back online. */
+function write(kind, id, data){
+  famRef.collection(kind).doc(id).set(data).catch(()=>{ S.note = "A result didn't save. Check your connection."; render(); });
+}
+
+/* ---------- derived data ---------- */
+const learner = () => S.learners.find(l=>l.id===S.learnerId);
+const byTime = (a,b)=>a.at-b.at;
+/* attempt kinds: "topic" = 10-question test, "chapter" = 20-question chapter test, "review" = weak-spot practice */
+const kindOf = a => a.kind || "topic";
+const attemptsFor = (lid,tid,kind="topic") => S.attempts.filter(a=>a.learnerId===lid && (tid ? a.topicId===tid && kindOf(a)===kind : true)).sort(byTime);
+/* reads record finished steps: stage "notes" (Learn) or "practice" (Practise) */
+const hasRead = (lid,tid,stage="notes") => S.reads.some(r=>r.learnerId===lid && r.topicId===tid && (r.stage||"notes")===stage);
+const chapterBest = (lid,tid) => { const c = attemptsFor(lid,tid,"chapter"); return c.length ? Math.max(...c.map(a=>a.score)) : null; };
+const topicsFor = l => { const order=Object.keys(SUBJECTS); return TOPICS.filter(t=>t.grade===+l.grade).sort((a,b)=>order.indexOf(a.subject)-order.indexOf(b.subject) || (a.term||9)-(b.term||9)); };
+
+/* Every attempt stores items [{t: topicId, q: questionIndex, ok}]; older ones are rebuilt from `wrong`. */
+function itemsOf(a){
+  if(Array.isArray(a.items)) return a.items;
+  if(a.topicId && Array.isArray(a.wrong)) return Array.from({length:10},(_,q)=>({t:a.topicId,q,ok:!a.wrong.includes(q)}));
+  return [];
+}
+/* A question is a weak spot when the learner's most recent answer to it was wrong. */
+function weakItems(lid){
+  const last = {};
+  S.attempts.filter(a=>a.learnerId===lid).sort(byTime).forEach(a=>{
+    itemsOf(a).forEach(it=>{ last[it.t+"#"+it.q] = {...it, at:a.at}; });
+  });
+  return Object.values(last).filter(x=>!x.ok && getQ(x.t,x.q));
+}
+function weakByTopic(lid){
+  const g = {};
+  weakItems(lid).forEach(x=>{ (g[x.t] = g[x.t] || []).push(x); });
+  return Object.entries(g).map(([t,items])=>({topic:TOPIC[t], items})).sort((a,b)=>b.items.length-a.items.length);
+}
+const fixedCount = lid => {
+  // questions once wrong that are now right
+  const seen = {}, fixed = new Set();
+  S.attempts.filter(a=>a.learnerId===lid).sort(byTime).forEach(a=>itemsOf(a).forEach(it=>{
+    const k=it.t+"#"+it.q; if(!it.ok) seen[k]=true; else if(seen[k]) fixed.add(k);
+  }));
+  weakItems(lid).forEach(x=>fixed.delete(x.t+"#"+x.q));
+  return fixed.size;
+};
+function status(lid,tid){
+  const at = attemptsFor(lid,tid);
+  const weak = weakItems(lid).filter(x=>x.t===tid).length;
+  if(!at.length) return hasRead(lid,tid) ? {cls:"p-read",label:"Notes read",weak} : {cls:"p-none",label:"Not started",weak};
+  const best = Math.max(...at.map(a=>a.score));
+  if(best>=8) return {cls:"p-good",label:`Mastered · best ${best}/10`,best,weak};
+  if(best>=5) return {cls:"p-warn",label:`Getting there · best ${best}/10`,best,weak};
+  return {cls:"p-bad",label:`Needs work · best ${best}/10`,best,weak};
+}
+const fmtDate = t => new Date(t).toLocaleDateString("en-ZA",{day:"numeric",month:"short"})+" "+new Date(t).toLocaleTimeString("en-ZA",{hour:"2-digit",minute:"2-digit"});
+
+/* ---------- install ---------- */
+let installEvt = null;
+const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); installEvt=e; nav(); });
+window.addEventListener("appinstalled", ()=>{ installEvt=null; nav(); });
+const installTip = () => standalone() ? "" :
+  isIOS ? `<p class="tip">Install on iPhone: tap <b>Share</b> in Safari, then <b>Add to Home Screen</b>.</p>` :
+  installEvt ? "" : `<p class="tip">Install: in Chrome or Edge, open the browser menu and choose <b>Install Lesson Ladder</b> (or <b>Add to Home screen</b> on Android).</p>`;
+
+/* ---------- views ---------- */
+function nav(){
+  const n = document.getElementById("nav"); const l = learner();
+  if(S.mode!=="ready"){ n.innerHTML = installEvt?`<button data-act="install">Install app</button>`:""; return; }
+  n.innerHTML = `
+    ${installEvt ? `<button data-act="install">Install app</button>` : ""}
+    ${l ? `<button data-act="home" aria-pressed="${!["parent","pick","parentlock"].includes(S.view)}">${esc(l.name)} · Gr ${l.grade}</button>` : ""}
+    <button data-act="pick" aria-pressed="${S.view==="pick"}">${l?"Switch":"Learners"}</button>
+    <button data-act="parent" aria-pressed="${S.view==="parent"||S.view==="parentlock"}">Parent</button>`;
+}
+
+function vSetup(){
+  return `<section class="hello"><span class="eyebrow">One-time setup</span><h1>Connect the database</h1>
+  <p>This copy of Lesson Ladder isn't connected to Firebase yet. Paste your Firebase settings into <b>config.js</b> as described in the setup guide (README), then reload.</p></section>`;
+}
+
+function vAuth(){
+  if(S.newCode) return `<div class="auth">
+  <section class="hello"><span class="eyebrow">Family created</span><h1>Your family code</h1>
+  <p class="muted">Type this code on each child's PC to connect it. Write it down and keep it private; anyone with the code can see your children's progress.</p></section>
+  <div class="stat" style="text-align:center"><div class="v" style="font-size:clamp(26px,8vw,40px);letter-spacing:.06em">${showCode(S.newCode)}</div></div>
+  <div class="row"><button class="btn ghost" data-act="copycode">Copy code</button><button class="btn" data-act="codedone">I've written it down</button></div></div>`;
+  const join = S.authTab!=="new" && !LOCAL;
+  if(LOCAL) S.authTab = "new";
+  return `<div class="auth">
+  <section class="hello"><span class="eyebrow">CAPS · Grade 7–9</span><h1>${join?"Connect this device":"Start a new family"}</h1>
+  <p class="muted">${LOCAL?"Choose a parent PIN, then add your child. Their results and the parent report are kept on this device.":join?"Type the family code shown in the parent area on the parent's phone. You only do this once per device.":"A parent does this once, on their own phone. You'll get a family code to type on the kids' PCs."}</p></section>
+  ${LOCAL?`<p class="tip">This copy isn't connected to the online database yet, so progress is saved on this device only. Set up the family here, on the device the child uses.</p>`:`<div class="tabs"><button data-act="authtab" data-tab="join" aria-pressed="${join}">Join with family code</button><button data-act="authtab" data-tab="new" aria-pressed="${!join}">New family</button></div>`}
+  <form class="form" id="authForm" novalidate>
+    ${join
+      ? `<label for="a-code">Family code<input id="a-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" maxlength="16" required></label>`
+      : `<label for="a-pin">Choose a parent PIN (4 digits, keeps the report private from the kids)<input id="a-pin" inputmode="numeric" maxlength="4" autocomplete="off" required></label>`}
+    <p class="err" id="a-err" role="alert"></p>
+    <div><button class="btn" type="submit">${join?"Connect":"Create family"}</button></div>
+  </form>
+  ${installTip()}</div>`;
+}
+
+function vPick(){
+  const list = S.learners.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  return `
+  <section class="hello"><span class="eyebrow">CAPS · Grade 7–9</span><h1>Who's studying today?</h1>
+  <p class="muted">Read the notes, then answer 10 questions. Questions you get wrong become weak spots to practise until you get them right.</p></section>
+  ${list.length ? `<div class="learners">${list.map(l=>{const w=weakItems(l.id).length;return `
+    <button class="lcard" data-act="choose" data-id="${esc(l.id)}"><b>${esc(l.name)}</b><span class="muted">Grade ${l.grade} · ${attemptsFor(l.id).length} quizzes${w?` · ${w} weak spot${w===1?"":"s"}`:""}</span></button>`}).join("")}</div>`
+  : `<div class="empty" style="margin-bottom:20px">No learners yet. A parent can add each child in the <b>Parent</b> area.</div>`}
+  ${installTip()}`;
+}
+
+function weakPanel(l){
+  const groups = weakByTopic(l.id); const n = groups.reduce((s,g)=>s+g.items.length,0);
+  if(!n){
+    return attemptsFor(l.id).length ? `<div class="stat" style="margin-bottom:24px"><div class="eyebrow">Weak spots</div><p style="margin:4px 0 0">None right now. Every question you've answered is correct on your latest try.</p></div>` : "";
+  }
+  return `<section class="kid" style="margin-bottom:28px;border-color:var(--bad)">
+    <header><h2 style="font-size:22px">Your weak spots</h2><span class="pill p-bad">${n} question${n===1?"":"s"} to fix</span></header>
+    <p class="muted" style="margin:0">These are questions you got wrong on your last try. Practise them until they're right; each one drops off this list when you answer it correctly.</p>
+    <div class="feed">${groups.map(g=>`<div><span><b>${esc(g.topic.title)}</b> <span class="muted">· ${SUBJECTS[g.topic.subject].name}</span></span>
+      <span class="row" style="gap:12px"><span class="num">${g.items.length} to fix</span><button class="linkbtn" data-act="topic" data-id="${g.topic.id}">Re-read notes</button><button class="linkbtn" data-act="review" data-topic="${g.topic.id}">Practise</button></span></div>`).join("")}</div>
+    <div><button class="btn" data-act="review">Fix my weak spots (${Math.min(n,10)} questions)</button></div>
+  </section>`;
+}
+
+function vHome(){
+  const l = learner(); if(!l) return vPick();
+  const mine = topicsFor(l);
+  const done = mine.filter(t=>attemptsFor(l.id,t.id).length).length;
+  const bests = mine.map(t=>status(l.id,t.id).best).filter(b=>b!=null);
+  const avg = bests.length ? Math.round(bests.reduce((a,b)=>a+b,0)/bests.length*10) : null;
+  const soon = typeof comingSoon==="function" ? comingSoon(l.grade) : [];
+  const subs = Object.keys(SUBJECTS).filter(s=>mine.some(t=>t.subject===s) || soon.some(t=>t.subject===s));
+  const termOf = t => t.term || 0;
+  return `
+  <section class="hello"><span class="eyebrow">Grade ${l.grade} · CAPS</span><h1>Hi ${esc(l.name)}, pick a topic</h1></section>
+  <div class="strip">
+    <div class="stat"><div class="eyebrow">Topics tried</div><div class="v">${done}/${mine.length}</div></div>
+    <div class="stat"><div class="eyebrow">Best average</div><div class="v">${avg==null?"–":avg+"%"}</div></div>
+    <div class="stat"><div class="eyebrow">Weak spots fixed</div><div class="v">${fixedCount(l.id)}</div></div>
+  </div>
+  ${weakPanel(l)}
+  <div class="subjects">${subs.map(s=>`
+    <section class="subj"><h2>${SUBJECTS[s].name}</h2>
+    ${[...mine.filter(t=>t.subject===s), ...soon.filter(t=>t.subject===s).map(t=>({...t, soon:true}))].sort((a,b)=>(a.soon?1:0)-(b.soon?1:0) || termOf(b)-termOf(a)).map(t=>{
+      if(t.soon) return `<div class="tcard soon"><span class="eyebrow">${t.term?`Term ${t.term}`:"Language"}</span><h3>${esc(t.title)}</h3><span class="meta"><span class="muted">Notes and questions on the way</span><span class="pill p-none">Coming soon</span></span></div>`;
+      const st=status(l.id,t.id);return `
+      <button class="tcard" data-act="topic" data-id="${t.id}">
+        <span class="eyebrow">${t.term?`Term ${t.term} · `:""}${t.strand}</span><h3>${t.title}</h3>
+        ${stepChips(l.id,t.id)}
+        <span class="meta"><span class="muted">${st.weak?`${st.weak} weak spot${st.weak===1?"":"s"} to fix`:"&nbsp;"}</span><span class="pill ${st.cls}">${st.label}</span></span>
+      </button>`}).join("")}
+    </section>`).join("")}</div>`;
+}
+
+/* ---------- a topic = four steps ---------- */
+const STEPS = [["learn","Learn"],["practise","Practise"],["test","Test"],["chapter","Chapter test"]];
+function stepState(lid,tid){
+  const tests = attemptsFor(lid,tid), ch = attemptsFor(lid,tid,"chapter");
+  return {
+    learn: hasRead(lid,tid,"notes") ? "Done" : "",
+    practise: hasRead(lid,tid,"practice") ? "Done" : "",
+    test: tests.length ? `Best ${Math.max(...tests.map(a=>a.score))}/10` : "",
+    chapter: ch.length ? `Best ${Math.max(...ch.map(a=>a.score))}/20` : (tests.length ? "" : "Locked")
+  };
+}
+function stepChips(lid,tid){
+  const st = stepState(lid,tid);
+  return `<span class="chips">${STEPS.map(([k,label],i)=>`<span class="chip ${st[k]&&st[k]!=="Locked"?"on":""}">${i+1} ${label}${st[k]&&st[k]!=="Locked"&&st[k]!=="Done"?": "+st[k].replace("Best ",""):""}</span>`).join("")}</span>`;
+}
+
+function vTopic(){
+  const t = TOPIC[S.topicId], l = learner(), st = stepState(l.id,t.id);
+  const step = S.step || "learn";
+  const weak = weakItems(l.id).filter(x=>x.t===t.id);
+  const tabs = `<nav class="steps" aria-label="Topic steps">${STEPS.map(([k,label],i)=>`
+    <button data-act="step" data-step="${k}" aria-current="${step===k?"step":"false"}" class="${st[k]&&st[k]!=="Locked"?"done":""}">
+      <span class="n">${st[k]&&st[k]!=="Locked"?"✓":i+1}</span><span><b>${label}</b><small>${st[k]||"&nbsp;"}</small></span></button>`).join("")}</nav>`;
+  let body = "";
+  if(step==="learn"){
+    body = `${weak.length?`<div class="banner" style="margin-top:14px"><b>You got these wrong last time.</b> Look for the answers in the notes:<ul style="margin:6px 0 0;padding-left:20px">${weak.map(x=>`<li>${esc(getQ(t.id,x.q).q)}</li>`).join("")}</ul></div>`:""}
+    <article class="notes">${t.notes}</article>
+    <div class="cta"><button class="btn" data-act="learned">I understand · Go to practice</button></div>`;
+  } else if(step==="practise"){
+    body = `<div class="panel"><h2>Practise first</h2>
+      <p>Answer ${t.pq.length} practice questions. If you get one wrong, you'll get a hint and can try again until you get it right. Practice isn't marked.</p>
+      <div class="row"><button class="btn" data-act="practice">Start practice</button><button class="btn ghost" data-act="step" data-step="learn">Read the notes again</button></div></div>`;
+  } else if(step==="test"){
+    const tests = attemptsFor(l.id,t.id);
+    body = `<div class="panel"><h2>Test: 10 questions</h2>
+      <p>This test is marked and saved for the parent report. You'll see the right answer and an explanation after each question. Questions you get wrong become weak spots to fix.</p>
+      ${tests.length?`<p class="muted">Tries so far: ${tests.length} · best ${Math.max(...tests.map(a=>a.score))}/10 · latest ${tests[tests.length-1].score}/10</p>`:""}
+      ${!hasRead(l.id,t.id,"practice")?`<p class="tip">Tip: do the practice step first. It makes the test easier.</p>`:""}
+      <div class="row"><button class="btn" data-act="start">Start the test</button>
+      ${weak.length?`<button class="btn ghost" data-act="review" data-topic="${t.id}">Fix my ${weak.length} weak spot${weak.length===1?"":"s"}</button>`:""}</div></div>`;
+  } else {
+    const ch = attemptsFor(l.id,t.id,"chapter"), unlocked = attemptsFor(l.id,t.id).length>0;
+    body = `<div class="panel"><h2>Chapter test: 20 questions</h2>
+      <p>The end-of-chapter test covers the whole chapter, exam style. You won't see whether you're right until the end, so take your time and check each answer.</p>
+      ${ch.length?`<p class="muted">Tries so far: ${ch.length} · best ${Math.max(...ch.map(a=>a.score))}/20 · latest ${ch[ch.length-1].score}/20</p>`:""}
+      ${unlocked?`<div><button class="btn" data-act="chapter">Start the chapter test</button></div>`
+        :`<p class="tip">Do the 10-question test first to unlock the chapter test.</p><div><button class="btn ghost" data-act="step" data-step="test">Go to the test</button></div>`}</div>`;
+  }
+  return `<div class="narrow" style="margin:0 auto">
+  <button class="crumb" data-act="home">← All topics</button>
+  <span class="eyebrow">Grade ${t.grade} · ${SUBJECTS[t.subject].name}${t.term?` · Term ${t.term}`:""}</span>
+  <h1 style="font-size:clamp(28px,5vw,38px);margin:4px 0 16px">${t.title}</h1>
+  ${tabs}${body}</div>`;
+}
+
+function vQuiz(){
+  const z = S.quiz, it = z.items[z.i], t = TOPIC[it.t], q = getQ(it.t,it.q), n = z.items.length;
+  const { picked, checked } = z, tried = z.tried || [];
+  const title = z.kind==="review" ? "Weak-spot practice · "+esc(t.title) : z.kind==="practice" ? "Practice · "+esc(t.title) : z.kind==="chapter" ? "Chapter test · "+esc(t.title) : "Test · "+esc(t.title);
+  const exam = z.kind==="chapter";
+  const opts = q.o.map((o,i)=>{
+    let cls=""; if(checked){ if(i===q.a) cls="right"; else if(i===picked) cls="wrong"; }
+    if(tried.includes(i)) cls="wrong";
+    const off = checked || tried.includes(i);
+    return `<button class="opt ${cls}" role="radio" aria-checked="${picked===i}" data-act="pickopt" data-i="${i}" ${off?"disabled":""}><span class="k">${L[i]}</span><span>${esc(o)}</span></button>`}).join("");
+  let fb = "";
+  if(z.kind==="practice" && !checked && tried.length) fb = `<div class="fb hint"><b>Not quite. Here's a hint:</b>${esc(q.h)} Try again.</div>`;
+  else if(checked && !exam){
+    const ok = z.kind==="practice" ? true : picked===q.a;
+    const head = z.kind==="practice" ? (tried.length?"Got it.":"Correct, first try.") : ok ? (z.kind==="review"?"Fixed. That one is off your weak list.":"Correct.") : "Not quite. The answer is "+L[q.a]+".";
+    fb = `<div class="fb ${ok?"ok":"no"}"><b>${head}</b>${esc(q.e)}</div>`;
+  }
+  const last = z.i===n-1;
+  const btn = exam
+    ? `<button class="btn" data-act="examnext" ${picked==null?"disabled":""}>${last?"Finish and see my mark":"Next question"}</button>`
+    : checked ? `<button class="btn" data-act="next">${last?(z.kind==="practice"?"Finish practice":"See my score"):"Next question"}</button>`
+    : `<button class="btn" data-act="check" ${picked==null?"disabled":""}>Check answer</button>`;
+  return `<div class="narrow" style="margin:0 auto">
+  <div class="qhead"><span class="eyebrow">${title}</span><span class="eyebrow" style="font-variant-numeric:tabular-nums">Question ${z.i+1} of ${n}</span></div>
+  <div class="bar"><i style="width:${(z.i+(checked?1:0))/n*100}%"></i></div>
+  <div class="q">${esc(q.q)}</div>
+  <div class="opts" role="radiogroup" aria-label="Answer options">${opts}</div>
+  ${fb}
+  <div class="cta">${exam&&z.i>0?`<button class="btn ghost" data-act="examback" style="margin-right:auto">Previous</button>`:""}${btn}</div></div>`;
+}
+
+function vPracticeDone(){
+  const t = TOPIC[S.topicId], r = S.last;
+  return `<div class="narrow" style="margin:0 auto">
+  <span class="eyebrow">Practice · ${esc(t.title)}</span>
+  <div class="score"><div class="big">${r.first}<small>/${r.n}</small></div>
+    <div><div style="font-weight:700;font-size:20px">right on the first try</div>
+    <div class="muted">${r.first===r.n?"You're ready for the test.":"Good work getting there. Re-read the notes for the ones that needed a hint, then take the test."}</div></div></div>
+  <div class="row"><button class="btn" data-act="start">Take the 10-question test</button><button class="btn ghost" data-act="practice">Practise again</button><button class="btn ghost" data-act="step" data-step="learn">Re-read notes</button></div></div>`;
+}
+
+function vResult(){
+  const r = S.last, n = r.items.length, score = r.items.filter(x=>x.ok).length, pct = Math.round(score/n*100), [lv,ln] = level(pct);
+  const wrong = r.items.filter(x=>!x.ok);
+  const l = learner(); const left = l ? weakItems(l.id).length : 0;
+  const isReview = r.kind==="review", isChapter = r.kind==="chapter";
+  const t = r.topicId ? TOPIC[r.topicId] : null;
+  return `<div class="narrow" style="margin:0 auto">
+  <span class="eyebrow">${isReview?"Weak-spot practice":(isChapter?"Chapter test · ":"Test · ")+esc(t.title)}</span>
+  <div class="score"><div class="big">${score}<small>/${n}</small></div>
+    <div><div style="font-weight:700;font-size:20px">${isReview?`${score} fixed, ${n-score} still to fix`:`${pct}% · Level ${lv}: ${ln}`}</div>
+    <div class="muted">Saved for the parent report. ${left?`You have ${left} weak spot${left===1?"":"s"} left.`:"You have no weak spots left."}</div></div></div>
+  ${wrong.length?`<h2 style="font-size:20px">${isChapter?"Questions you got wrong":"Still to fix"}</h2><div class="miss">${wrong.map(x=>{const q=getQ(x.t,x.q);return `<div><b>${esc(q.q)}</b><br>Answer: ${esc(q.o[q.a])}<br><span class="muted">${esc(q.e)}</span></div>`}).join("")}</div>`:`<p>You got every question right.</p>`}
+  <div class="row" style="margin-top:20px">
+    ${left?`<button class="btn" data-act="review">Fix my weak spots</button>`:""}
+    ${!isReview && !isChapter?`<button class="btn ${left?"ghost":""}" data-act="chapter">Go to the chapter test</button><button class="btn ghost" data-act="start">Try the test again</button>`:""}
+    ${isChapter?`<button class="btn ${left?"ghost":""}" data-act="chapter">Try the chapter test again</button>`:""}
+    ${t?`<button class="btn ghost" data-act="topic" data-id="${t.id}">Back to the topic</button>`:""}
+    <button class="btn ghost" data-act="home">All topics</button></div></div>`;
+}
+
+function vParentLock(){
+  return `<div class="auth"><section class="hello"><span class="eyebrow">Parent area</span><h1>Enter the parent PIN</h1></section>
+  <form class="form" id="pinForm">
+    <label for="p-pin">Parent PIN<input id="p-pin" inputmode="numeric" maxlength="4" autocomplete="off" required></label>
+    <label class="check" for="p-remember"><input type="checkbox" id="p-remember"> Remember this phone as a parent device</label>
+    <p class="err" id="p-err" role="alert"></p>
+    <div><button class="btn" type="submit">Open report</button></div>
+  </form></div>`;
+}
+
+function vParent(){
+  const kids = S.learners.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const recent = S.attempts.slice().sort((a,b)=>b.at-a.at).slice(0,10);
+  return `<section class="hello"><span class="eyebrow">Parent area</span><h1>Progress report</h1>
+  <p class="levels">CAPS achievement levels: 7 Outstanding 80–100% · 6 Meritorious 70–79 · 5 Substantial 60–69 · 4 Adequate 50–59 · 3 Moderate 40–49 · 2 Elementary 30–39 · 1 Not achieved 0–29.</p></section>
+  ${!kids.length?`<div class="empty" style="margin-bottom:20px">No learners yet. Add each child below.</div>`:""}
+  ${kids.map(k=>{
+    const mine = topicsFor(k);
+    const bests = mine.map(t=>status(k.id,t.id).best).filter(b=>b!=null);
+    const avg = bests.length ? Math.round(bests.reduce((a,b)=>a+b,0)/bests.length*10) : null;
+    const reads = mine.filter(t=>hasRead(k.id,t.id)).length;
+    const all = attemptsFor(k.id); const lastAt = all.length ? all[all.length-1].at : null;
+    const weak = weakByTopic(k.id); const wn = weak.reduce((s,g)=>s+g.items.length,0);
+    return `<article class="kid"><header><h2>${esc(k.name)}</h2><span class="muted">Grade ${k.grade} · last active ${lastAt?fmtDate(lastAt):"never"}</span></header>
+    <div class="strip">
+      <div class="stat"><div class="eyebrow">Topics tried</div><div class="v">${bests.length}/${mine.length}</div></div>
+      <div class="stat"><div class="eyebrow">Notes read</div><div class="v">${reads}/${mine.length}</div></div>
+      <div class="stat"><div class="eyebrow">Best average</div><div class="v">${avg==null?"–":avg+"%"}</div></div>
+      <div class="stat"><div class="eyebrow">CAPS level</div><div class="v">${avg==null?"–":level(avg)[0]}</div><div class="muted" style="font-size:13px">${avg==null?"No quizzes yet":level(avg)[1]}</div></div>
+      <div class="stat"><div class="eyebrow">Weak spots</div><div class="v">${wn}</div><div class="muted" style="font-size:13px">${fixedCount(k.id)} fixed so far</div></div>
+    </div>
+    ${wn?`<div><h3 style="font-size:17px;margin-bottom:6px">Weak areas to attend to</h3><div class="miss">${weak.map(g=>`<div style="border-left-color:var(--warn)"><b>${esc(g.topic.title)}</b> <span class="muted">· ${SUBJECTS[g.topic.subject].name} · ${g.items.length} question${g.items.length===1?"":"s"} still wrong</span>
+      <ul style="margin:6px 0 0;padding-left:20px">${g.items.map(x=>{const q=getQ(g.topic.id,x.q);return `<li>${esc(q.q)} <span class="muted">(answer: ${esc(q.o[q.a])})</span></li>`}).join("")}</ul></div>`).join("")}</div>
+      <p class="muted" style="font-size:14px;margin:8px 0 0">${esc(k.name)} sees these on their home screen with a “Fix my weak spots” practice round.</p></div>`:""}
+    <div class="tbl"><table><thead><tr><th>Subject · topic</th><th>Learn</th><th>Practise</th><th>Test tries</th><th>Test best</th><th>Latest</th><th>Chapter test</th><th>Weak</th><th>Status</th></tr></thead><tbody>
+    ${mine.map(t=>{const a=attemptsFor(k.id,t.id), st=status(k.id,t.id), lt=a[a.length-1];return `<tr>
+      <td><span class="muted" style="font-size:13px">${SUBJECTS[t.subject].name}</span><br>${t.title}</td>
+      <td>${hasRead(k.id,t.id)?"Done":"–"}</td><td>${hasRead(k.id,t.id,"practice")?"Done":"–"}</td><td class="num">${a.length}</td>
+      <td class="num">${st.best!=null?st.best+"/10":"–"}</td>
+      <td class="num">${lt?`${lt.score}/10<br><span class="muted" style="font-size:13px">${fmtDate(lt.at)}</span>`:"–"}</td>
+      <td class="num">${chapterBest(k.id,t.id)!=null?chapterBest(k.id,t.id)+"/20":"–"}</td>
+      <td class="num">${st.weak||"–"}</td>
+      <td><span class="pill ${st.cls}">${st.label.split(" · ")[0]}</span></td></tr>`}).join("")}
+    </tbody></table></div>
+    <div class="tools">${S.confirmRemove===k.id
+      ? `<span>Remove ${esc(k.name)}? Their results are kept but hidden.</span><button class="btn ghost danger" data-act="remove" data-id="${esc(k.id)}">Yes, remove</button><button class="btn ghost" data-act="cancelremove">Cancel</button>`
+      : `<button class="btn ghost danger" data-act="askremove" data-id="${esc(k.id)}">Remove learner</button>`}</div>
+    </article>`}).join("")}
+  ${recent.length?`<h2 style="font-size:20px;margin:8px 0 10px">Recent activity</h2><div class="feed" style="margin-bottom:24px">${recent.map(a=>{const k=S.learners.find(x=>x.id===a.learnerId); if(!k) return ""; const n=itemsOf(a).length, sc=itemsOf(a).filter(x=>x.ok).length; const what=a.kind==="review"?"Weak-spot practice":(a.kind==="chapter"?"Chapter test · ":"Test · ")+(TOPIC[a.topicId]?.title||""); return `<div><span><b>${esc(k.name)}</b> · ${esc(what)}</span><span class="num">${sc}/${n} · ${fmtDate(a.at)}</span></div>`}).join("")}</div>`:""}
+  <form class="form" id="addForm" style="margin-bottom:24px">
+    <strong>Add a learner</strong>
+    <label for="new-name">First name<input id="new-name" required maxlength="30" autocomplete="off"></label>
+    <label for="new-grade">Grade<select id="new-grade"><option value="7">Grade 7</option><option value="8" selected>Grade 8</option><option value="9">Grade 9</option></select></label>
+    <div><button class="btn" type="submit">Add learner</button></div>
+  </form>
+  <div class="kid"><header><h2 style="font-size:20px">Family code</h2></header>
+    <p class="muted" style="margin:0">Type this on a new device to connect it to your family. Keep it private.</p>
+    <div class="row"><span class="v" style="font-family:var(--display);font-weight:800;font-size:24px;letter-spacing:.06em">${showCode(S.code)}</span><button class="btn ghost" data-act="copycode">Copy</button></div></div>
+  <div class="tools"><button class="btn ghost" data-act="lockparent">Lock parent area</button>${S.confirmLeave
+    ? `<span>Disconnect this device? You'll need the family code to connect it again.</span><button class="btn ghost danger" data-act="leave">Yes, disconnect</button><button class="btn ghost" data-act="cancelleave">Cancel</button>`
+    : `<button class="btn ghost" data-act="askleave">Disconnect this device</button>`}</div>`;
+}
+
+function render(){
+  nav();
+  const app = document.getElementById("app");
+  const draft = document.getElementById("new-name")?.value;
+  let html = S.note ? `<div class="banner" role="status">${esc(S.note)}</div>` : "";
+  if(S.mode==="loading") html += `<p class="muted">Loading…</p>`;
+  else if(S.mode==="setup") html += vSetup();
+  else if(S.mode==="nofamily") html += vAuth();
+  else if(S.view==="parent") html += S.parentOk ? vParent() : vParentLock();
+  else if(S.view==="pick" || !learner()) html += vPick();
+  else if(S.view==="topic") html += vTopic();
+  else if(S.view==="quiz") html += vQuiz();
+  else if(S.view==="result") html += vResult();
+  else if(S.view==="practicedone") html += vPracticeDone();
+  else html += vHome();
+  if(S.mode==="ready") html += `<p class="foot">${LOCAL?"Progress is saved on this device only. Once the online database is connected, it will sync between devices.":navigator.onLine?"Progress syncs to every device signed in to this family.":"You're offline. Results are kept on this device and sync when you reconnect."}</p>`;
+  app.innerHTML = html;
+  if(draft){ const i=document.getElementById("new-name"); if(i) i.value=draft; }
+}
+function softRender(){ if(S.view==="quiz"){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select")) { nav(); return; } render(); }
+function go(view){ S.view=view; S.note=""; render(); window.scrollTo(0,0); }
+
+/* ---------- quizzes ---------- */
+const shuffle = a => { for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+function startTopicQuiz(tid){
+  S.quiz = {kind:"topic", topicId:tid, items:TOPIC[tid].qs.map((_,q)=>({t:tid,q})), i:0, picked:null, checked:false, answers:[]};
+  go("quiz");
+}
+function startPractice(tid){
+  S.quiz = {kind:"practice", topicId:tid, items:TOPIC[tid].pq.map((_,i)=>({t:tid,q:"p"+i})), i:0, picked:null, checked:false, answers:[], tried:[], firstTry:0};
+  go("quiz");
+}
+/* Chapter test: the 10 test questions + 5 practice + 5 chapter-only questions, in random order. */
+function startChapter(tid){
+  const T = TOPIC[tid];
+  const items = shuffle([...T.qs.map((_,q)=>({t:tid,q})), ...T.pq.map((_,i)=>({t:tid,q:"p"+i})), ...T.cq.map((_,i)=>({t:tid,q:"c"+i}))]);
+  S.quiz = {kind:"chapter", topicId:tid, items, i:0, picked:null, checked:false, answers:[]};
+  go("quiz");
+}
+function startReview(onlyTopic){
+  const l = learner(); if(!l) return;
+  let pool = weakItems(l.id);
+  if(onlyTopic) pool = pool.filter(x=>x.t===onlyTopic);
+  if(!pool.length) return;
+  // most-missed topics first, then shuffle within the first 10
+  const counts = {}; pool.forEach(x=>counts[x.t]=(counts[x.t]||0)+1);
+  pool.sort((a,b)=>counts[b.t]-counts[a.t] || a.at-b.at);
+  const items = pool.slice(0,10).map(x=>({t:x.t,q:x.q}));
+  for(let i=items.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [items[i],items[j]]=[items[j],items[i]]; }
+  S.quiz = {kind:"review", topicId:null, items, i:0, picked:null, checked:false, answers:[]};
+  go("quiz");
+}
+function finishQuiz(){
+  const z = S.quiz, l = learner();
+  if(z.kind==="practice"){
+    const tid = z.topicId, rid = `${l.id}__${tid}__practice`;
+    if(!hasRead(l.id,tid,"practice")){ S.reads.push({id:rid,learnerId:l.id,topicId:tid,stage:"practice"}); write("reads", rid, {learnerId:l.id, topicId:tid, stage:"practice", at:Date.now()}); }
+    S.last = {first:z.firstTry, n:z.items.length}; go("practicedone"); return;
+  }
+  const items = z.items.map((it,i)=>({t:it.t, q:it.q, ok: z.answers[i]===getQ(it.t,it.q).a}));
+  const rec = { learnerId:l.id, kind:z.kind, at:Date.now(), items, total:items.length, score:items.filter(x=>x.ok).length };
+  if(z.kind==="chapter"){ rec.topicId=z.topicId; rec.subject=TOPIC[z.topicId].subject; rec.grade=TOPIC[z.topicId].grade; }
+  if(z.kind==="topic"){ rec.topicId=z.topicId; rec.subject=TOPIC[z.topicId].subject; rec.grade=TOPIC[z.topicId].grade; rec.wrong=items.map((x,i)=>x.ok?null:i).filter(i=>i!=null); }
+  const id = uid();
+  S.attempts.push({id, ...rec});       // show immediately; the snapshot confirms it
+  write("attempts", id, rec);
+  S.last = rec; go("result");
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", async e=>{
+  const b = e.target.closest("[data-act]"); if(!b) return;
+  const act = b.dataset.act, l = learner();
+  if(act==="install"){ if(installEvt){ installEvt.prompt(); await installEvt.userChoice.catch(()=>{}); installEvt=null; nav(); } }
+  else if(act==="authtab"){ S.authTab=b.dataset.tab; render(); }
+  else if(act==="copycode"){
+    const text = showCode(S.newCode || S.code);
+    try{ await navigator.clipboard.writeText(text); b.textContent="Copied"; }catch{ b.textContent=text; }
+  }
+  else if(act==="codedone"){ const c=S.newCode; S.newCode=null; pref.set("ll-family",c); pref.set("ll-parent-device",c); S.view="parent"; openFamily(c); }
+  else if(act==="home"){ go(l?"home":"pick"); }
+  else if(act==="pick"){ go("pick"); }
+  else if(act==="parent"){ go("parent"); }
+  else if(act==="choose"){ S.learnerId=b.dataset.id; pref.set("ll-learner",S.learnerId); go("home"); }
+  else if(act==="topic"){ S.topicId=b.dataset.id; S.step=null; if(l){ const st=stepState(l.id,S.topicId); S.step = !st.learn?"learn":!st.practise?"practise":!st.test?"test":"chapter"; } go("topic"); }
+  else if(act==="step"){ S.step=b.dataset.step; go("topic"); }
+  else if(act==="learned"){
+    const tid=S.topicId;
+    if(l && !hasRead(l.id,tid)){ const rid=`${l.id}__${tid}`; S.reads.push({id:rid,learnerId:l.id,topicId:tid}); write("reads", rid, {learnerId:l.id, topicId:tid, stage:"notes", at:Date.now()}); }
+    S.step="practise"; go("topic");
+  }
+  else if(act==="practice"){ startPractice(S.topicId); }
+  else if(act==="chapter"){ const tid=S.topicId||S.last?.topicId; S.topicId=tid; startChapter(tid); }
+  else if(act==="examnext"){ const z=S.quiz; if(z.picked==null) return; z.answers[z.i]=z.picked;
+    if(z.i<z.items.length-1){ z.i++; z.picked = z.answers[z.i] ?? null; render(); window.scrollTo(0,0); } else finishQuiz(); }
+  else if(act==="examback"){ const z=S.quiz; if(z.picked!=null) z.answers[z.i]=z.picked; z.i--; z.picked=z.answers[z.i] ?? null; render(); }
+  else if(act==="start"){
+    const tid = S.topicId || S.last?.topicId; S.topicId = tid;
+    startTopicQuiz(tid);
+  }
+  else if(act==="review"){ startReview(b.dataset.topic); }
+  else if(act==="pickopt"){ if(!S.quiz.checked){ S.quiz.picked=+b.dataset.i; render(); } }
+  else if(act==="check"){
+    const z=S.quiz; if(z.picked==null) return;
+    if(z.kind==="practice"){
+      const q=getQ(z.items[z.i].t, z.items[z.i].q);
+      if(z.picked===q.a){ if(!z.tried.length) z.firstTry++; z.checked=true; }
+      else { z.tried.push(z.picked); z.picked=null; }
+      render(); return;
+    }
+    z.checked=true; z.answers[z.i]=z.picked; render();
+  }
+  else if(act==="next"){
+    const z=S.quiz;
+    if(z.i<z.items.length-1){ z.i++; z.picked=null; z.checked=false; z.tried=[]; render(); window.scrollTo(0,0); }
+    else finishQuiz();
+  }
+  else if(act==="askremove"){ S.confirmRemove=b.dataset.id; render(); }
+  else if(act==="cancelremove"){ S.confirmRemove=null; render(); }
+  else if(act==="remove"){ const id=b.dataset.id; S.confirmRemove=null; famRef.collection("learners").doc(id).delete().catch(()=>{}); if(S.learnerId===id){ S.learnerId=null; pref.del("ll-learner"); } }
+  else if(act==="lockparent"){ S.parentOk=false; pref.del("ll-parent-device"); go(learner()?"home":"pick"); }
+  else if(act==="askleave"){ S.confirmLeave=true; render(); }
+  else if(act==="cancelleave"){ S.confirmLeave=false; render(); }
+  else if(act==="leave"){
+    unsubs.forEach(u=>u()); unsubs=[];
+    ["ll-family","ll-parent-device","ll-learner"].forEach(k=>pref.del(k));
+    Object.assign(S,{confirmLeave:false, code:null, family:null, learnerId:null, learners:[], attempts:[], reads:[], parentOk:false, view:"home", mode:"nofamily", authTab:"join"});
+    render();
+  }
+});
+
+document.addEventListener("submit", async e=>{
+  e.preventDefault();
+  const f = e.target;
+  if(f.id==="authForm"){
+    const err=document.getElementById("a-err"); err.textContent="";
+    if(!S.user){ err.textContent="Still connecting. Check your internet connection and try again."; return; }
+    try{
+      if(S.authTab==="new"){
+        const pin=document.getElementById("a-pin").value.trim();
+        if(!/^\d{4}$/.test(pin)){ err.textContent="The parent PIN must be 4 digits."; return; }
+        const code = newCode();
+        await fs.collection("families").doc(code).set({pinHash: await sha(code+":"+pin), createdAt:Date.now()});
+        S.newCode = code; S.parentOk = true; render();
+      } else {
+        const code = cleanCode(document.getElementById("a-code").value);
+        if(code.length!==12){ err.textContent="The family code has 12 letters and numbers, like K7PM-29QX-HT4R."; return; }
+        const d = await fs.collection("families").doc(code).get();
+        if(!d.exists){ err.textContent="No family found with that code. Check it and try again."; return; }
+        pref.set("ll-family", code); S.view="pick"; openFamily(code);
+      }
+    }catch(x){ err.textContent = (x && String(x.code||"").includes("unavailable")) ? "No internet connection. Connect and try again." : "That didn't work. Check your connection and try again."; }
+  }
+  else if(f.id==="pinForm"){
+    const pin=document.getElementById("p-pin").value.trim(), err=document.getElementById("p-err");
+    if(!S.family || !S.family.pinHash){ err.textContent="No PIN found for this family yet. Check your connection."; return; }
+    if(await sha(S.code+":"+pin) === S.family.pinHash){
+      S.parentOk = true;
+      if(document.getElementById("p-remember").checked) pref.set("ll-parent-device", S.code);
+      render();
+    } else err.textContent = "That PIN isn't right.";
+  }
+  else if(f.id==="addForm"){
+    const name=document.getElementById("new-name").value.trim(), grade=+document.getElementById("new-grade").value;
+    if(!name) return;
+    const id=uid(); document.getElementById("new-name").value="";
+    S.learners.push({id,name,grade}); write("learners", id, {name, grade, createdAt:Date.now()}); render();
+  }
+});
+window.addEventListener("online", ()=>softRender());
+window.addEventListener("offline", ()=>softRender());
+
+if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(()=>{});
+startFirebase();
