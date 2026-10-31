@@ -150,7 +150,10 @@ const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); installEvt=e; nav(); });
 window.addEventListener("appinstalled", ()=>{ installEvt=null; nav(); });
 const installTip = () => standalone() ? "" :
-  isIOS ? `<div class="tip"><b>Add this app to your iPhone home screen</b><ol style="margin:6px 0 0;padding-left:20px"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>•••</b> or <b>☰</b> button next to the web address at the bottom (on older iPhones, tap the <b>Share</b> button ⬆️).</li><li>Tap <b>Share</b>, then scroll down and tap <b>Add to Home Screen</b>.</li><li>Leave <b>Open as Web App</b> switched on and tap <b>Add</b>.</li></ol></div>` :
+  isIOS ? `<div class="tip"><b>Add this app to your iPhone home screen</b> (open this page in <b>Safari</b> first)
+  <p style="margin:8px 0 2px"><b>iPhones on iOS 26:</b></p><ol style="margin:0;padding-left:20px"><li>Tap the <b>☰</b> or <b>•••</b> button next to the web address.</li><li>Tap <b>Share</b>, then <b>Add to Home Screen</b>.</li><li>Leave <b>Open as Web App</b> on and tap <b>Add</b>.</li></ol>
+  <p style="margin:8px 0 2px"><b>iPhones on iOS 18 or earlier:</b></p><ol style="margin:0;padding-left:20px"><li>Tap the <b>Share</b> button (square with an arrow) at the bottom.</li><li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
+  <p class="muted" style="margin:8px 0 0;font-size:14px">To check your version: Settings → General → About → iOS Version.</p></div>` :
   installEvt ? "" : `<p class="tip">Install: in Chrome or Edge, open the browser menu and choose <b>Install Lesson Ladder</b> (or <b>Add to Home screen</b> on Android).</p>`;
 
 /* ---------- views ---------- */
