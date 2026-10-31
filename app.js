@@ -335,61 +335,58 @@ function vTopic(){
 }
 
 /* ---------- Term 4 mock exams ----------
-   One per subject: questions drawn from every written topic in the subject (whole year),
-   with Term 4 topics counted twice. Exam-style: no marking until the end. */
-const MOCK_MAX = 40;
+   Four fixed papers of 40 questions per subject. The subject's questions are interleaved by topic,
+   and each paper starts a quarter further into that list, so every paper covers every topic and
+   the papers overlap as little as the question bank allows. */
+const MOCK_MAX = 40, PAPERS = 4;
 const mockTopics = (l,s) => topicsFor(l).filter(t=>t.subject===s);
-const mockAttempts = (lid,s) => S.attempts.filter(a=>a.learnerId===lid && a.kind==="mock" && a.subject===s).sort(byTime);
+const mockAttempts = (lid,s,p) => S.attempts.filter(a=>a.learnerId===lid && a.kind==="mock" && a.subject===s && (p==null || a.paper===p)).sort(byTime);
 const pctOf = a => { const its=itemsOf(a); return its.length ? Math.round(its.filter(x=>x.ok).length/its.length*100) : 0; };
-function mockSize(l,s){ return Math.min(MOCK_MAX, mockTopics(l,s).reduce((n,t)=>n+t.qs.length+t.pq.length+t.cq.length,0)); }
-function buildMock(l,s){
-  const tops = mockTopics(l,s);
-  const pools = {}; tops.forEach(t=>{ pools[t.id] = shuffle([...t.qs.map((_,q)=>q), ...t.pq.map((_,i)=>"p"+i), ...t.cq.map((_,i)=>"c"+i)]); });
-  const turn = []; tops.forEach(t=>{ turn.push(t.id); if(t.term===4) turn.push(t.id); });
-  const want = mockSize(l,s), items = [];
-  while(items.length<want){
-    let added = false;
-    for(const tid of shuffle(turn.slice())){ if(items.length>=want) break; const q = pools[tid].pop(); if(q!==undefined){ items.push({t:tid,q}); added = true; } }
-    if(!added) break;
-  }
-  // group by topic in CAPS order, like a real paper
+function seeded(str){ let h=2166136261; for(const c of str) h=Math.imul(h^c.charCodeAt(0),16777619)>>>0; return ()=>{ h=Math.imul(h^(h>>>15),2246822507)>>>0; h=Math.imul(h^(h>>>13),3266489909)>>>0; h^=h>>>16; return (h>>>0)/4294967296; }; }
+function mockBank(l,s){
+  const tops = mockTopics(l,s).sort(byTopicOrder), rnd = seeded(`mock-${l.grade}-${s}`);
+  const pools = tops.map(t=>{ const p=[...t.qs.map((_,q)=>q), ...t.pq.map((_,i)=>"p"+i), ...t.cq.map((_,i)=>"c"+i)];
+    for(let i=p.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [p[i],p[j]]=[p[j],p[i]]; } return p.map(q=>({t:t.id,q})); });
+  const all = []; for(let r=0; pools.some(p=>p.length>r); r++) pools.forEach(p=>{ if(p[r]) all.push(p[r]); });
+  return all;
+}
+function mockSize(l,s){ return Math.min(MOCK_MAX, mockBank(l,s).length); }
+function buildMock(l,s,paper){
+  const bank = mockBank(l,s), size = mockSize(l,s), items = [];
+  const start = Math.floor((paper-1)*bank.length/PAPERS);   // spread the papers evenly through the bank
+  for(let j=0;j<size;j++) items.push(bank[(start + j) % bank.length]);
   return items.sort((a,b)=>byTopicOrder(TOPIC[a.t],TOPIC[b.t]));
 }
-function startMock(s){
+function startMock(s,paper){
   const l = learner(); if(!l) return;
-  S.quiz = {kind:"mock", subject:s, items:buildMock(l,s), i:0, picked:null, checked:false, answers:[], started:Date.now()};
+  S.quiz = {kind:"mock", subject:s, paper, items:buildMock(l,s,paper), i:0, picked:null, checked:false, answers:[], started:Date.now()};
   go("quiz");
 }
 const mm = secs => `${Math.floor(secs/60)}:${String(secs%60).padStart(2,"0")}`;
 function mockCard(l,s){
-  const a = mockAttempts(l.id,s), best = a.length ? Math.max(...a.map(pctOf)) : null, n = mockTopics(l,s).length;
+  const done = [1,2,3,4].filter(p=>mockAttempts(l.id,s,p).length).length, a = mockAttempts(l.id,s).filter(x=>x.paper), best = a.length ? Math.max(...a.map(pctOf)) : null;
   return `<button class="tile" data-act="mockintro" data-s="${s}"><b>${esc(sname(s,l.grade))}</b>
-    <span class="muted">${mockSize(l,s)} questions · ${n} topic${n===1?"":"s"}</span>
-    <span>${best==null?`<span class="muted">Not tried yet</span>`:`Best ${best}% · Level ${level(best)[0]} · ${a.length} tr${a.length===1?"y":"ies"}`}</span></button>`;
+    <span class="muted">4 papers · ${mockSize(l,s)} questions each</span>
+    <span>${done?`${done}/4 papers done · best ${best}%`:`<span class="muted">No papers written yet</span>`}</span></button>`;
 }
 function vMocks(){
   const l = learner(); if(!l) return vPick();
   const subs = Object.keys(SUBJECTS).filter(s=>mockTopics(l,s).length);
   return `${crumbs([{act:"home",label:"Subjects"},{label:"Mock exams"}])}
   <h1 class="pagetitle">Term 4 mock exams</h1>
-  <p class="muted" style="margin:0 0 16px">Practise the real thing. Each mock covers the whole year's work for the subject, with extra Term 4 questions. You only see your mark at the end, like in the exam. Every mock is different.</p>
+  <p class="muted" style="margin:0 0 16px">Practise the real thing. Every subject has four papers covering the whole year's work. You only see your mark at the end, like in the exam.</p>
   <div class="tiles">${subs.map(s=>mockCard(l,s)).join("")}</div>`;
 }
 function vMockIntro(){
   const l = learner(), s = S.subject; if(!l || !s) return vMocks();
-  const n = mockSize(l,s), tops = mockTopics(l,s).sort(byTopicOrder), past = mockAttempts(l.id,s).slice().reverse();
+  const n = mockSize(l,s), tops = mockTopics(l,s).sort(byTopicOrder), bank = mockBank(l,s).length;
   return `${crumbs([{act:"home",label:"Subjects"},{act:"mocks",label:"Mock exams"},{label:sname(s,l.grade)}])}
-  <h1 class="pagetitle">${esc(sname(s,l.grade))} mock exam</h1>
-  <div class="panel">
-    <ul style="margin:0 0 12px;padding-left:20px">
-      <li>${n} questions from ${tops.length} topic${tops.length===1?"":"s"}</li>
-      <li>Aim to finish in about ${Math.round(n*1.2)} minutes</li>
-      <li>No answers are shown until the end. You can go back and change answers.</li>
-      <li>Questions you get wrong become weak spots to fix.</li></ul>
-    <div class="row"><button class="btn" data-act="mockstart" data-s="${s}">Start the mock exam</button></div>
-  </div>
-  ${past.length?`<h2 class="h2s">Your mock results</h2><div class="feed">${past.slice(0,5).map(a=>`<div><span>${fmtDate(a.at)}</span><span class="num">${pctOf(a)}% · Level ${level(pctOf(a))[0]}</span></div>`).join("")}</div>`:""}
-  <details class="more" style="margin-top:16px"><summary>Topics in this mock</summary><ul style="margin:0;padding-left:20px">${tops.map(t=>`<li>${t.term?`Term ${t.term}: `:""}${esc(t.title)}</li>`).join("")}</ul></details>`;
+  <h1 class="pagetitle">${esc(sname(s,l.grade))} mock exams</h1>
+  <p class="muted" style="margin:0 0 14px">Four practice papers of ${n} questions, each covering all ${tops.length} topic${tops.length===1?"":"s"}. Aim for about ${Math.round(n*1.2)} minutes per paper. No answers are shown until the end, and you can go back to change answers.${bank<n*PAPERS?" Some questions appear in more than one paper.":""}</p>
+  <div class="topiclist">${[1,2,3,4].map(p=>{ const a = mockAttempts(l.id,s,p), best = a.length ? Math.max(...a.map(pctOf)) : null, last = a[a.length-1];
+    return `<button class="tcard" data-act="mockstart" data-s="${s}" data-p="${p}"><span class="meta"><b style="font-size:18px">Paper ${p}</b>${best==null?`<span class="pill p-none">Not written</span>`:`<span class="pill ${best>=50?"p-good":"p-bad"}">Best ${best}% · Level ${level(best)[0]}</span>`}</span>
+      <span class="muted">${a.length?`${a.length} tr${a.length===1?"y":"ies"} · last ${pctOf(last)}% on ${fmtDate(last.at)}`:`${n} questions · tap to start`}</span></button>`;}).join("")}</div>
+  <details class="more" style="margin-top:16px"><summary>Topics in these papers</summary><ul style="margin:0;padding-left:20px">${tops.map(t=>`<li>${t.term?`Term ${t.term}: `:""}${esc(t.title)}</li>`).join("")}</ul></details>`;
 }
 function topicBreakdown(items){
   const g = {}; items.forEach(x=>{ (g[x.t] = g[x.t] || {n:0,ok:0}); g[x.t].n++; if(x.ok) g[x.t].ok++; });
@@ -399,7 +396,7 @@ function topicBreakdown(items){
 function vQuiz(){
   const z = S.quiz, it = z.items[z.i], t = TOPIC[it.t], q = getQ(it.t,it.q), n = z.items.length;
   const { picked, checked } = z, tried = z.tried || [];
-  const title = z.kind==="mock" ? "Mock exam · "+esc(sname(z.subject, t.grade)) : z.kind==="review" ? "Weak-spot practice · "+esc(t.title) : z.kind==="practice" ? "Practice · "+esc(t.title) : z.kind==="chapter" ? "Chapter test · "+esc(t.title) : "Test · "+esc(t.title);
+  const title = z.kind==="mock" ? `Mock Paper ${z.paper} · `+esc(sname(z.subject, t.grade)) : z.kind==="review" ? "Weak-spot practice · "+esc(t.title) : z.kind==="practice" ? "Practice · "+esc(t.title) : z.kind==="chapter" ? "Chapter test · "+esc(t.title) : "Test · "+esc(t.title);
   const exam = z.kind==="chapter" || z.kind==="mock";
   const opts = q.o.map((o,i)=>{
     let cls=""; if(checked){ if(i===q.a) cls="right"; else if(i===picked) cls="wrong"; }
@@ -443,7 +440,7 @@ function vMockResult(){
   const l = learner(), g = l ? +l.grade : r.grade, bd = topicBreakdown(r.items), wrong = r.items.filter(x=>!x.ok);
   const revise = bd.filter(x=>x.pct<60);
   return `<div class="narrow" style="margin:0 auto">
-  <span class="eyebrow">Mock exam · ${esc(sname(r.subject,g))}</span>
+  <span class="eyebrow">Mock Paper ${r.paper||1} · ${esc(sname(r.subject,g))}</span>
   <div class="score"><div class="big">${pct}<small>%</small></div>
     <div><div style="font-weight:700;font-size:20px">${score}/${n} · Level ${lv}: ${ln}</div>
     <div class="muted">${pct>=50?"That's a pass. ":"Not a pass yet, keep going. "}Time: ${mm(r.secs||0)}. Saved for the parent report.</div></div></div>
@@ -454,8 +451,9 @@ function vMockResult(){
   ${wrong.length?`<details class="more" style="margin-top:16px"><summary>See the ${wrong.length} question${wrong.length===1?"":"s"} you got wrong</summary><div class="miss">${wrong.map(x=>{const q=getQ(x.t,x.q);return `<div><b>${esc(q.q)}</b><br>Answer: ${esc(q.o[q.a])}<br><span class="muted">${esc(q.e)}</span></div>`}).join("")}</div></details>`:""}
   <div class="row" style="margin-top:20px">
     ${wrong.length?`<button class="btn" data-act="review" data-subj="${r.subject}">Fix my mistakes</button>`:""}
-    <button class="btn ${wrong.length?"ghost":""}" data-act="mockstart" data-s="${r.subject}">Try a new mock</button>
-    <button class="btn ghost" data-act="mocks">All mock exams</button></div></div>`;
+    ${(r.paper||1)<4?`<button class="btn ${wrong.length?"ghost":""}" data-act="mockstart" data-s="${r.subject}" data-p="${(r.paper||1)+1}">Write Paper ${(r.paper||1)+1}</button>`:""}
+    <button class="btn ghost" data-act="mockstart" data-s="${r.subject}" data-p="${r.paper||1}">Redo Paper ${r.paper||1}</button>
+    <button class="btn ghost" data-act="mockintro" data-s="${r.subject}">All ${esc(sname(r.subject,g))} papers</button></div></div>`;
 }
 function vResult(){
   const r = S.last;
@@ -542,7 +540,7 @@ function vPChild(){
   <h2 class="h2s">What ${esc(k.name)} did</h2>
   <div class="tiles periods">${PERIODS.map(([p,label])=>{ const ev=eventsIn(k.id,p), days=new Set(ev.map(e=>dayKey(e.at))).size;
     return `<button class="tile" data-act="pper" data-p="${p}"><b>${label}</b><span class="muted">${ev.length?`${ev.length} activit${ev.length===1?"y":"ies"} · ${days} day${days===1?"":"s"}`:"Nothing yet"}</span></button>`;}).join("")}</div>
-  ${(()=>{ const ms = subs.filter(s=>mockAttempts(k.id,s).length); return `<h2 class="h2s">Mock exams</h2>${ms.length?`<div class="feed">${ms.map(s=>{const a=mockAttempts(k.id,s), best=Math.max(...a.map(pctOf)), last=a[a.length-1]; return `<div><span>${esc(sname(s,k.grade))}<br><span class="muted" style="font-size:13px">${a.length} tr${a.length===1?"y":"ies"} · last ${pctOf(last)}% on ${fmtDate(last.at).split(" ").slice(0,2).join(" ")}</span></span><span class="pill ${best>=50?"p-good":"p-bad"}">Best ${best}%</span></div>`;}).join("")}</div>`:`<p class="muted" style="margin:0">No mock exams written yet.</p>`}`; })()}
+  ${(()=>{ const ms = subs.filter(s=>mockAttempts(k.id,s).length); return `<h2 class="h2s">Mock exams</h2>${ms.length?`<div class="feed">${ms.map(s=>{const a=mockAttempts(k.id,s), best=Math.max(...a.map(pctOf)), last=a[a.length-1]; return `<div><span>${esc(sname(s,k.grade))}<br><span class="muted" style="font-size:13px">${[1,2,3,4].filter(p=>mockAttempts(k.id,s,p).length).length}/4 papers · ${a.length} tr${a.length===1?"y":"ies"} · last ${pctOf(last)}% on ${fmtDate(last.at).split(" ").slice(0,2).join(" ")}</span></span><span class="pill ${best>=50?"p-good":"p-bad"}">Best ${best}%</span></div>`;}).join("")}</div>`:`<p class="muted" style="margin:0">No mock exams written yet.</p>`}`; })()}
   <h2 class="h2s">Subjects</h2>
   <div class="tiles">${subs.map(s=>{
     const x = kidSummary(k, mine.filter(t=>t.subject===s));
@@ -615,7 +613,7 @@ function evOf(a){
   const its = itemsOf(a), sc = its.length ? `${its.filter(x=>x.ok).length}/${its.length}` : (a.total ? `${a.score}/${a.total} first try` : "");
   const label = {notes:"Read the notes", practice:"Did practice", topic:"Test", chapter:"Chapter test", review:"Weak-spot practice", mock:"Mock exam"}[k] || "Activity";
   const msub = k==="mock" ? sname(a.subject, a.grade) : "";
-  return {at:a.at, kind:k, label, subject: k==="review" ? "Mixed subjects" : (k==="mock" ? msub : sub), title: k==="review" ? "Weak-spot practice" : k==="mock" ? "Mock exam: "+msub : (t?.title || ""), score: (k==="topic"||k==="chapter"||k==="review"||k==="mock") ? sc : (k==="practice" && a.total ? sc : "")};
+  return {at:a.at, kind:k, label, subject: k==="review" ? "Mixed subjects" : (k==="mock" ? msub : sub), title: k==="review" ? "Weak-spot practice" : k==="mock" ? `Mock Paper ${a.paper||1}: `+msub : (t?.title || ""), score: (k==="topic"||k==="chapter"||k==="review"||k==="mock") ? sc : (k==="practice" && a.total ? sc : "")};
 }
 function eventsFor(lid){
   const reads = S.reads.filter(r=>r.learnerId===lid && r.at && TOPIC[r.topicId]);
@@ -760,7 +758,7 @@ function finishQuiz(){
   }
   const items = z.items.map((it,i)=>({t:it.t, q:it.q, ok: z.answers[i]===getQ(it.t,it.q).a}));
   const rec = { learnerId:l.id, kind:z.kind, at:Date.now(), items, total:items.length, score:items.filter(x=>x.ok).length };
-  if(z.kind==="mock"){ rec.subject=z.subject; rec.grade=+l.grade; rec.secs=Math.round((Date.now()-z.started)/1000); }
+  if(z.kind==="mock"){ rec.subject=z.subject; rec.paper=z.paper; rec.grade=+l.grade; rec.secs=Math.round((Date.now()-z.started)/1000); }
   if(z.kind==="chapter"){ rec.topicId=z.topicId; rec.subject=TOPIC[z.topicId].subject; rec.grade=TOPIC[z.topicId].grade; }
   if(z.kind==="topic"){ rec.topicId=z.topicId; rec.subject=TOPIC[z.topicId].subject; rec.grade=TOPIC[z.topicId].grade; rec.wrong=items.map((x,i)=>x.ok?null:i).filter(i=>i!=null); }
   const id = uid();
@@ -805,7 +803,7 @@ document.addEventListener("click", async e=>{
   else if(act==="chapter"){ const tid=S.topicId||S.last?.topicId; S.topicId=tid; startChapter(tid); }
   else if(act==="mocks"){ go("mocks"); }
   else if(act==="mockintro"){ S.subject=b.dataset.s; go("mockintro"); }
-  else if(act==="mockstart"){ S.subject=b.dataset.s; startMock(b.dataset.s); }
+  else if(act==="mockstart"){ S.subject=b.dataset.s; startMock(b.dataset.s, +b.dataset.p || 1); }
   else if(act==="examnext"){ const z=S.quiz; if(z.picked==null) return; z.answers[z.i]=z.picked;
     if(z.i<z.items.length-1){ z.i++; z.picked = z.answers[z.i] ?? null; render(); window.scrollTo(0,0); } else finishQuiz(); }
   else if(act==="examback"){ const z=S.quiz; if(z.picked!=null) z.answers[z.i]=z.picked; z.i--; z.picked=z.answers[z.i] ?? null; render(); }
