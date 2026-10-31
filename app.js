@@ -150,7 +150,7 @@ const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); installEvt=e; nav(); });
 window.addEventListener("appinstalled", ()=>{ installEvt=null; nav(); });
 const installTip = () => standalone() ? "" :
-  isIOS ? `<p class="tip">Install on iPhone: tap <b>Share</b> in Safari, then <b>Add to Home Screen</b>.</p>` :
+  isIOS ? `<div class="tip"><b>Add this app to your iPhone home screen</b><ol style="margin:6px 0 0;padding-left:20px"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>•••</b> or <b>☰</b> button next to the web address at the bottom (on older iPhones, tap the <b>Share</b> button ⬆️).</li><li>Tap <b>Share</b>, then scroll down and tap <b>Add to Home Screen</b>.</li><li>Leave <b>Open as Web App</b> switched on and tap <b>Add</b>.</li></ol></div>` :
   installEvt ? "" : `<p class="tip">Install: in Chrome or Edge, open the browser menu and choose <b>Install Lesson Ladder</b> (or <b>Add to Home screen</b> on Android).</p>`;
 
 /* ---------- views ---------- */
