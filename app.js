@@ -240,6 +240,7 @@ function vHome(){
     <div class="stat"><div class="eyebrow">Best average</div><div class="v">${avg==null?"–":avg+"%"}</div></div>
     <div class="stat"><div class="eyebrow">Weak spots fixed</div><div class="v">${fixedCount(l.id)}</div></div>
   </div>
+  <button class="mockbar" data-act="mocks"><span><b>Term 4 mock exams</b><span class="muted">Practise a full exam for every subject</span></span><span aria-hidden="true">›</span></button>
   ${weakPanel(l)}
   <div class="tiles">${subs.map(s=>{
     const list = mine.filter(t=>t.subject===s), pr = progressOf(l.id, list);
@@ -254,6 +255,7 @@ function vSubject(){
   if(terms.length===1){ S.term = terms[0]; return vTerm(); }
   return `${crumbs([{act:"home",label:"Subjects"},{label:sname(s,l.grade)}])}
   <h1 class="pagetitle">${esc(sname(s,l.grade))}</h1>
+  <button class="mockbar small" data-act="mockintro" data-s="${s}"><span><b>${esc(sname(s,l.grade))} mock exam</b></span><span aria-hidden="true">›</span></button>
   <div class="tiles">${terms.map(term=>{
     const tl = list.filter(t=>(t.term||0)===term), pr = progressOf(l.id, tl);
     return `<button class="tile" data-act="term" data-t="${term}"><b>${term?`Term ${term}`:"All topics"}</b>
@@ -268,6 +270,7 @@ function vTerm(){
   const label = term?`Term ${term}`:"Topics";
   return `${crumbs(multi?[{act:"home",label:"Subjects"},{act:"subject",data:`data-s="${s}"`,label:sname(s,l.grade)},{label}]:[{act:"home",label:"Subjects"},{label:sname(s,l.grade)}])}
   <h1 class="pagetitle">${esc(sname(s,l.grade))}${multi?` · ${label}`:""}</h1>
+  ${multi?"":`<button class="mockbar small" data-act="mockintro" data-s="${s}"><span><b>${esc(sname(s,l.grade))} mock exam</b></span><span aria-hidden="true">›</span></button>`}
   <div class="topiclist">${list.map(t=>{const st=status(l.id,t.id);return `
     <button class="tcard" data-act="topic" data-id="${t.id}">
       <span class="eyebrow">${t.strand}</span><h3>${t.title}</h3>
@@ -331,11 +334,73 @@ function vTopic(){
   ${tabs}${body}</div>`;
 }
 
+/* ---------- Term 4 mock exams ----------
+   One per subject: questions drawn from every written topic in the subject (whole year),
+   with Term 4 topics counted twice. Exam-style: no marking until the end. */
+const MOCK_MAX = 40;
+const mockTopics = (l,s) => topicsFor(l).filter(t=>t.subject===s);
+const mockAttempts = (lid,s) => S.attempts.filter(a=>a.learnerId===lid && a.kind==="mock" && a.subject===s).sort(byTime);
+const pctOf = a => { const its=itemsOf(a); return its.length ? Math.round(its.filter(x=>x.ok).length/its.length*100) : 0; };
+function mockSize(l,s){ return Math.min(MOCK_MAX, mockTopics(l,s).reduce((n,t)=>n+t.qs.length+t.pq.length+t.cq.length,0)); }
+function buildMock(l,s){
+  const tops = mockTopics(l,s);
+  const pools = {}; tops.forEach(t=>{ pools[t.id] = shuffle([...t.qs.map((_,q)=>q), ...t.pq.map((_,i)=>"p"+i), ...t.cq.map((_,i)=>"c"+i)]); });
+  const turn = []; tops.forEach(t=>{ turn.push(t.id); if(t.term===4) turn.push(t.id); });
+  const want = mockSize(l,s), items = [];
+  while(items.length<want){
+    let added = false;
+    for(const tid of shuffle(turn.slice())){ if(items.length>=want) break; const q = pools[tid].pop(); if(q!==undefined){ items.push({t:tid,q}); added = true; } }
+    if(!added) break;
+  }
+  // group by topic in CAPS order, like a real paper
+  return items.sort((a,b)=>byTopicOrder(TOPIC[a.t],TOPIC[b.t]));
+}
+function startMock(s){
+  const l = learner(); if(!l) return;
+  S.quiz = {kind:"mock", subject:s, items:buildMock(l,s), i:0, picked:null, checked:false, answers:[], started:Date.now()};
+  go("quiz");
+}
+const mm = secs => `${Math.floor(secs/60)}:${String(secs%60).padStart(2,"0")}`;
+function mockCard(l,s){
+  const a = mockAttempts(l.id,s), best = a.length ? Math.max(...a.map(pctOf)) : null, n = mockTopics(l,s).length;
+  return `<button class="tile" data-act="mockintro" data-s="${s}"><b>${esc(sname(s,l.grade))}</b>
+    <span class="muted">${mockSize(l,s)} questions · ${n} topic${n===1?"":"s"}</span>
+    <span>${best==null?`<span class="muted">Not tried yet</span>`:`Best ${best}% · Level ${level(best)[0]} · ${a.length} tr${a.length===1?"y":"ies"}`}</span></button>`;
+}
+function vMocks(){
+  const l = learner(); if(!l) return vPick();
+  const subs = Object.keys(SUBJECTS).filter(s=>mockTopics(l,s).length);
+  return `${crumbs([{act:"home",label:"Subjects"},{label:"Mock exams"}])}
+  <h1 class="pagetitle">Term 4 mock exams</h1>
+  <p class="muted" style="margin:0 0 16px">Practise the real thing. Each mock covers the whole year's work for the subject, with extra Term 4 questions. You only see your mark at the end, like in the exam. Every mock is different.</p>
+  <div class="tiles">${subs.map(s=>mockCard(l,s)).join("")}</div>`;
+}
+function vMockIntro(){
+  const l = learner(), s = S.subject; if(!l || !s) return vMocks();
+  const n = mockSize(l,s), tops = mockTopics(l,s).sort(byTopicOrder), past = mockAttempts(l.id,s).slice().reverse();
+  return `${crumbs([{act:"home",label:"Subjects"},{act:"mocks",label:"Mock exams"},{label:sname(s,l.grade)}])}
+  <h1 class="pagetitle">${esc(sname(s,l.grade))} mock exam</h1>
+  <div class="panel">
+    <ul style="margin:0 0 12px;padding-left:20px">
+      <li>${n} questions from ${tops.length} topic${tops.length===1?"":"s"}</li>
+      <li>Aim to finish in about ${Math.round(n*1.2)} minutes</li>
+      <li>No answers are shown until the end. You can go back and change answers.</li>
+      <li>Questions you get wrong become weak spots to fix.</li></ul>
+    <div class="row"><button class="btn" data-act="mockstart" data-s="${s}">Start the mock exam</button></div>
+  </div>
+  ${past.length?`<h2 class="h2s">Your mock results</h2><div class="feed">${past.slice(0,5).map(a=>`<div><span>${fmtDate(a.at)}</span><span class="num">${pctOf(a)}% · Level ${level(pctOf(a))[0]}</span></div>`).join("")}</div>`:""}
+  <details class="more" style="margin-top:16px"><summary>Topics in this mock</summary><ul style="margin:0;padding-left:20px">${tops.map(t=>`<li>${t.term?`Term ${t.term}: `:""}${esc(t.title)}</li>`).join("")}</ul></details>`;
+}
+function topicBreakdown(items){
+  const g = {}; items.forEach(x=>{ (g[x.t] = g[x.t] || {n:0,ok:0}); g[x.t].n++; if(x.ok) g[x.t].ok++; });
+  return Object.entries(g).map(([t,v])=>({topic:TOPIC[t], ...v, pct:Math.round(v.ok/v.n*100)})).filter(x=>x.topic).sort((a,b)=>a.pct-b.pct);
+}
+
 function vQuiz(){
   const z = S.quiz, it = z.items[z.i], t = TOPIC[it.t], q = getQ(it.t,it.q), n = z.items.length;
   const { picked, checked } = z, tried = z.tried || [];
-  const title = z.kind==="review" ? "Weak-spot practice · "+esc(t.title) : z.kind==="practice" ? "Practice · "+esc(t.title) : z.kind==="chapter" ? "Chapter test · "+esc(t.title) : "Test · "+esc(t.title);
-  const exam = z.kind==="chapter";
+  const title = z.kind==="mock" ? "Mock exam · "+esc(sname(z.subject, t.grade)) : z.kind==="review" ? "Weak-spot practice · "+esc(t.title) : z.kind==="practice" ? "Practice · "+esc(t.title) : z.kind==="chapter" ? "Chapter test · "+esc(t.title) : "Test · "+esc(t.title);
+  const exam = z.kind==="chapter" || z.kind==="mock";
   const opts = q.o.map((o,i)=>{
     let cls=""; if(checked){ if(i===q.a) cls="right"; else if(i===picked) cls="wrong"; }
     if(tried.includes(i)) cls="wrong";
@@ -354,7 +419,8 @@ function vQuiz(){
     : checked ? `<button class="btn" data-act="next">${last?(z.kind==="practice"?"Finish practice":"See my score"):"Next question"}</button>`
     : `<button class="btn" data-act="check" ${picked==null?"disabled":""}>Check answer</button>`;
   return `<div class="narrow" style="margin:0 auto">
-  <div class="qhead"><span class="eyebrow">${title}</span><span class="eyebrow" style="font-variant-numeric:tabular-nums">Question ${z.i+1} of ${n}</span></div>
+  <div class="qhead"><span class="eyebrow">${title}</span><span class="eyebrow" style="font-variant-numeric:tabular-nums">Question ${z.i+1} of ${n}${z.kind==="mock"?` · <span id="mocktime">${mm(Math.floor((Date.now()-z.started)/1000))}</span>`:""}</span></div>
+  ${z.kind==="mock"?`<div class="muted" style="font-size:14px;margin:-4px 0 6px">${esc(t.title)}</div>`:""}
   <div class="bar"><i style="width:${(z.i+(checked?1:0))/n*100}%"></i></div>
   <div class="q">${esc(q.q)}</div>
   <div class="opts" role="radiogroup" aria-label="Answer options">${opts}</div>
@@ -372,8 +438,29 @@ function vPracticeDone(){
   <div class="row"><button class="btn" data-act="start">Take the 10-question test</button><button class="btn ghost" data-act="practice">Practise again</button><button class="btn ghost" data-act="step" data-step="learn">Re-read notes</button></div></div>`;
 }
 
-function vResult(){
+function vMockResult(){
   const r = S.last, n = r.items.length, score = r.items.filter(x=>x.ok).length, pct = Math.round(score/n*100), [lv,ln] = level(pct);
+  const l = learner(), g = l ? +l.grade : r.grade, bd = topicBreakdown(r.items), wrong = r.items.filter(x=>!x.ok);
+  const revise = bd.filter(x=>x.pct<60);
+  return `<div class="narrow" style="margin:0 auto">
+  <span class="eyebrow">Mock exam · ${esc(sname(r.subject,g))}</span>
+  <div class="score"><div class="big">${pct}<small>%</small></div>
+    <div><div style="font-weight:700;font-size:20px">${score}/${n} · Level ${lv}: ${ln}</div>
+    <div class="muted">${pct>=50?"That's a pass. ":"Not a pass yet, keep going. "}Time: ${mm(r.secs||0)}. Saved for the parent report.</div></div></div>
+  ${revise.length?`<div class="banner"><b>Revise these first:</b> ${revise.map(x=>esc(x.topic.title)).join(", ")}</div>`:`<p>No topic below 60%. Well done.</p>`}
+  <h2 class="h2s">Marks per topic</h2>
+  <div class="topiclist">${bd.map(x=>`<div class="tcard static"><span class="meta"><b>${esc(x.topic.title)}</b><span class="pill ${x.pct>=80?"p-good":x.pct>=50?"p-warn":"p-bad"}">${x.ok}/${x.n}</span></span>
+    ${x.pct<80?`<span class="row" style="gap:14px"><button class="linkbtn" data-act="topic" data-id="${x.topic.id}">Re-read notes</button><button class="linkbtn" data-act="review" data-topic="${x.topic.id}">Practise my mistakes</button></span>`:""}</div>`).join("")}</div>
+  ${wrong.length?`<details class="more" style="margin-top:16px"><summary>See the ${wrong.length} question${wrong.length===1?"":"s"} you got wrong</summary><div class="miss">${wrong.map(x=>{const q=getQ(x.t,x.q);return `<div><b>${esc(q.q)}</b><br>Answer: ${esc(q.o[q.a])}<br><span class="muted">${esc(q.e)}</span></div>`}).join("")}</div></details>`:""}
+  <div class="row" style="margin-top:20px">
+    ${wrong.length?`<button class="btn" data-act="review" data-subj="${r.subject}">Fix my mistakes</button>`:""}
+    <button class="btn ${wrong.length?"ghost":""}" data-act="mockstart" data-s="${r.subject}">Try a new mock</button>
+    <button class="btn ghost" data-act="mocks">All mock exams</button></div></div>`;
+}
+function vResult(){
+  const r = S.last;
+  if(r && r.kind==="mock") return vMockResult();
+  const n = r.items.length, score = r.items.filter(x=>x.ok).length, pct = Math.round(score/n*100), [lv,ln] = level(pct);
   const wrong = r.items.filter(x=>!x.ok);
   const l = learner(); const left = l ? weakItems(l.id).length : 0;
   const isReview = r.kind==="review", isChapter = r.kind==="chapter";
@@ -455,6 +542,7 @@ function vPChild(){
   <h2 class="h2s">What ${esc(k.name)} did</h2>
   <div class="tiles periods">${PERIODS.map(([p,label])=>{ const ev=eventsIn(k.id,p), days=new Set(ev.map(e=>dayKey(e.at))).size;
     return `<button class="tile" data-act="pper" data-p="${p}"><b>${label}</b><span class="muted">${ev.length?`${ev.length} activit${ev.length===1?"y":"ies"} · ${days} day${days===1?"":"s"}`:"Nothing yet"}</span></button>`;}).join("")}</div>
+  ${(()=>{ const ms = subs.filter(s=>mockAttempts(k.id,s).length); return `<h2 class="h2s">Mock exams</h2>${ms.length?`<div class="feed">${ms.map(s=>{const a=mockAttempts(k.id,s), best=Math.max(...a.map(pctOf)), last=a[a.length-1]; return `<div><span>${esc(sname(s,k.grade))}<br><span class="muted" style="font-size:13px">${a.length} tr${a.length===1?"y":"ies"} · last ${pctOf(last)}% on ${fmtDate(last.at).split(" ").slice(0,2).join(" ")}</span></span><span class="pill ${best>=50?"p-good":"p-bad"}">Best ${best}%</span></div>`;}).join("")}</div>`:`<p class="muted" style="margin:0">No mock exams written yet.</p>`}`; })()}
   <h2 class="h2s">Subjects</h2>
   <div class="tiles">${subs.map(s=>{
     const x = kidSummary(k, mine.filter(t=>t.subject===s));
@@ -525,8 +613,9 @@ function periodStart(p){
 function evOf(a){
   const t = TOPIC[a.topicId], k = a.stage ? a.stage : kindOf(a), sub = t ? sname(t.subject, t.grade) : "";
   const its = itemsOf(a), sc = its.length ? `${its.filter(x=>x.ok).length}/${its.length}` : (a.total ? `${a.score}/${a.total} first try` : "");
-  const label = {notes:"Read the notes", practice:"Did practice", topic:"Test", chapter:"Chapter test", review:"Weak-spot practice"}[k] || "Activity";
-  return {at:a.at, kind:k, label, subject: k==="review" ? "Mixed subjects" : sub, title: k==="review" ? "Weak-spot practice" : (t?.title || ""), score: (k==="topic"||k==="chapter"||k==="review") ? sc : (k==="practice" && a.total ? sc : "")};
+  const label = {notes:"Read the notes", practice:"Did practice", topic:"Test", chapter:"Chapter test", review:"Weak-spot practice", mock:"Mock exam"}[k] || "Activity";
+  const msub = k==="mock" ? sname(a.subject, a.grade) : "";
+  return {at:a.at, kind:k, label, subject: k==="review" ? "Mixed subjects" : (k==="mock" ? msub : sub), title: k==="review" ? "Weak-spot practice" : k==="mock" ? "Mock exam: "+msub : (t?.title || ""), score: (k==="topic"||k==="chapter"||k==="review"||k==="mock") ? sc : (k==="practice" && a.total ? sc : "")};
 }
 function eventsFor(lid){
   const reads = S.reads.filter(r=>r.learnerId===lid && r.at && TOPIC[r.topicId]);
@@ -543,6 +632,7 @@ function daySummary(ev){
   if(tests.length){ const avg = Math.round(tests.reduce((s,e)=>{const [a,b]=e.score.split("/").map(Number); return s+a/b;},0)/tests.length*100); parts.push(`${tests.length} test${tests.length===1?"":"s"} · avg ${avg}%`); }
   if(n("chapter")) parts.push(`${n("chapter")} chapter test${n("chapter")===1?"":"s"}`);
   if(n("review")) parts.push(`${n("review")} weak-spot round${n("review")===1?"":"s"}`);
+  ev.filter(e=>e.kind==="mock").forEach(e=>{ const [a,b]=e.score.split("/").map(Number); parts.push(`mock exam ${Math.round(a/b*100)}%`); });
   return parts.join(" · ");
 }
 
@@ -612,12 +702,15 @@ function render(){
   else if(S.view==="topic") html += vTopic();
   else if(S.view==="quiz") html += vQuiz();
   else if(S.view==="result") html += vResult();
+  else if(S.view==="mocks") html += vMocks();
+  else if(S.view==="mockintro") html += vMockIntro();
   else if(S.view==="practicedone") html += vPracticeDone();
   else html += vHome();
   if(S.mode==="ready") html += `<p class="foot">${LOCAL?"Progress is saved on this device only. Once the online database is connected, it will sync between devices.":navigator.onLine?"Progress syncs to every device signed in to this family.":"You're offline. Results are kept on this device and sync when you reconnect."}</p>`;
   app.innerHTML = html;
   if(draft){ const i=document.getElementById("new-name"); if(i) i.value=draft; }
 }
+setInterval(()=>{ const el=document.getElementById("mocktime"); if(el && S.quiz && S.quiz.started) el.textContent = mm(Math.floor((Date.now()-S.quiz.started)/1000)); }, 1000);
 function softRender(){ if(S.view==="quiz"){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select")) { nav(); return; } render(); }
 function go(view){ S.view=view; S.note=""; render(); window.scrollTo(0,0); }
 
@@ -667,6 +760,7 @@ function finishQuiz(){
   }
   const items = z.items.map((it,i)=>({t:it.t, q:it.q, ok: z.answers[i]===getQ(it.t,it.q).a}));
   const rec = { learnerId:l.id, kind:z.kind, at:Date.now(), items, total:items.length, score:items.filter(x=>x.ok).length };
+  if(z.kind==="mock"){ rec.subject=z.subject; rec.grade=+l.grade; rec.secs=Math.round((Date.now()-z.started)/1000); }
   if(z.kind==="chapter"){ rec.topicId=z.topicId; rec.subject=TOPIC[z.topicId].subject; rec.grade=TOPIC[z.topicId].grade; }
   if(z.kind==="topic"){ rec.topicId=z.topicId; rec.subject=TOPIC[z.topicId].subject; rec.grade=TOPIC[z.topicId].grade; rec.wrong=items.map((x,i)=>x.ok?null:i).filter(i=>i!=null); }
   const id = uid();
@@ -709,6 +803,9 @@ document.addEventListener("click", async e=>{
   }
   else if(act==="practice"){ startPractice(S.topicId); }
   else if(act==="chapter"){ const tid=S.topicId||S.last?.topicId; S.topicId=tid; startChapter(tid); }
+  else if(act==="mocks"){ go("mocks"); }
+  else if(act==="mockintro"){ S.subject=b.dataset.s; go("mockintro"); }
+  else if(act==="mockstart"){ S.subject=b.dataset.s; startMock(b.dataset.s); }
   else if(act==="examnext"){ const z=S.quiz; if(z.picked==null) return; z.answers[z.i]=z.picked;
     if(z.i<z.items.length-1){ z.i++; z.picked = z.answers[z.i] ?? null; render(); window.scrollTo(0,0); } else finishQuiz(); }
   else if(act==="examback"){ const z=S.quiz; if(z.picked!=null) z.answers[z.i]=z.picked; z.i--; z.picked=z.answers[z.i] ?? null; render(); }

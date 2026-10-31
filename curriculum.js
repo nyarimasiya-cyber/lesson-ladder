@@ -92,6 +92,9 @@ const CURRICULUM = [
 [9,"lo",4,"g9-lo-religion","Religions and sport ethics"],[9,"lo",4,"g9-lo-challenges","Coping with challenging situations"],[9,"lo",4,"g9-lo-study","Study skills and careers"]
 ];
 
+/* Mix answer positions in every topic (the Grade 7 subject files already did theirs). */
+if(typeof mixOpts==="function") TOPICS.forEach(mixOpts);
+
 /* Give written topics their term from the map. Heat transfer is Grade 7 Natural Sciences (Term 3) in CAPS. */
 (function(){
   const h = TOPIC["g8-ns-heat"];

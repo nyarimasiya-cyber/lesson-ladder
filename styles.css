@@ -201,3 +201,8 @@ details.more .form{border:0;padding:0;background:none}
 .timeline>div:last-child{border-bottom:0}
 .timeline .tm{color:var(--muted);min-width:44px;padding-top:2px}
 .feed.stack>div{display:grid;gap:2px;justify-content:start}
+/* mock exams */
+.mockbar{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left;background:var(--accent-soft);border:1px solid var(--accent);color:var(--ink);border-radius:var(--r);padding:14px 16px;margin:0 0 20px;font-size:22px}
+.mockbar>span:first-child{display:grid;gap:2px;font-size:16px}
+.mockbar.small{padding:10px 14px;margin:0 0 16px}
+.mockbar:hover{background:var(--accent);color:var(--accent-ink)}

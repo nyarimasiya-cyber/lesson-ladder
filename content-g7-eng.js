@@ -2,6 +2,7 @@
 /* Shared by the Grade 7 subject files: place each correct answer in a fixed, varied position
    (stable on every device, so saved results and weak spots stay valid). */
 function mixOpts(t){
+  if(t._mixed) return; t._mixed = true;
   ["qs","pq","cq"].forEach(k=>(t[k]||[]).forEach((q,i)=>{
     let h=0; for(const c of t.id+k+i) h=(h*31+c.charCodeAt(0))>>>0;
     const n=q.o.length, r=h%n; if(!r) return;
