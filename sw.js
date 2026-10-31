@@ -1,7 +1,7 @@
 /* Offline support: keeps the app and its notes available without internet.
    Change VERSION whenever you update any file so devices pick up the new copy. */
-const VERSION = "lesson-ladder-v16";
-const SHELL = ["./","./index.html","./styles.css","./config.js","./content.js","./content-extra.js","./content-grade7.js","./content-grade7-history.js","./content-grade7-maths-a.js","./content-grade7-maths-b.js","./content-grade7-geo.js","./content-grade7-ns.js","./content-g8-maths.js","./content-g8-ns.js","./content-g8-t4.js","./content-g9-maths.js","./content-g9-ns-a.js","./content-g9-ns-b.js","./content-g89-ss.js","./content-g9-t4.js","./curriculum.js","./app.js","./manifest.webmanifest",
+const VERSION = "lesson-ladder-v17";
+const SHELL = ["./","./index.html","./styles.css","./config.js","./content.js","./content-extra.js","./content-grade7.js","./content-grade7-history.js","./content-grade7-maths-a.js","./content-grade7-maths-b.js","./content-grade7-geo.js","./content-grade7-ns-a.js","./content-grade7-ns.js","./content-g8-maths.js","./content-g8-ns.js","./content-g8-t4.js","./content-g9-maths.js","./content-g9-ns-a.js","./content-g9-ns-b.js","./content-g89-ss.js","./content-g9-t4.js","./curriculum.js","./app.js","./manifest.webmanifest",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/apple-touch-icon.png"];
 const LIBS = ["firebase-app-compat.js","firebase-auth-compat.js","firebase-firestore-compat.js"]
   .map(f=>"https://www.gstatic.com/firebasejs/10.12.2/"+f);
