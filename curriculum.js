@@ -92,6 +92,9 @@ const CURRICULUM = [
 [9,"lo",4,"g9-lo-religion","Religions and sport ethics"],[9,"lo",4,"g9-lo-challenges","Coping with challenging situations"],[9,"lo",4,"g9-lo-study","Study skills and careers"]
 ];
 
+/* Use the full-length notes where they have been written. */
+if(typeof FULL_NOTES==="object") Object.entries(FULL_NOTES).forEach(([id,n])=>{ if(TOPIC[id]) TOPIC[id].notes = n; });
+
 /* Mix answer positions in every topic (the Grade 7 subject files already did theirs). */
 if(typeof mixOpts==="function") TOPICS.forEach(mixOpts);
 

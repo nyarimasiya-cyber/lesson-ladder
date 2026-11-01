@@ -299,6 +299,28 @@ function stepChips(lid,tid){
   return `<span class="chips">${STEPS.map(([k,label],i)=>`<span class="chip ${st[k]&&st[k]!=="Locked"?"on":""}">${i+1} ${label}${st[k]&&st[k]!=="Locked"&&st[k]!=="Done"?": "+st[k].replace("Best ",""):""}</span>`).join("")}</span>`;
 }
 
+/* Long notes are split into pages at their section headings (about one phone screen or two per page). */
+function notePages(html){
+  const parts = html.split(/(?=<h2[ >])/).filter(p=>p.trim());
+  const pages = []; let cur = "";
+  parts.forEach(p=>{ const len = s => s.replace(/<[^>]+>/g,"").length;
+    if(cur && len(cur) + len(p) > 2400){ pages.push(cur); cur = p; } else cur += p; });
+  if(cur) pages.push(cur);
+  return pages.length ? pages : [html];
+}
+function notesPager(t){
+  const pages = notePages(t.notes), n = pages.length;
+  if(S.npageFor !== t.id){ S.npageFor = t.id; S.npage = 0; }
+  const all = S.nall, i = Math.min(S.npage||0, n-1), last = all || i===n-1;
+  const titles = pages.map(p=>{ const hs = [...p.matchAll(/<h2[^>]*>(.*?)<\/h2>/g)].map(m=>m[1].replace(/<[^>]+>/g,"").replace(/^\d+\.\s*/,""));
+    const t = hs.join(" · ") || "Notes"; return t.length>70 ? t.slice(0,68)+"…" : t; });
+  const nav = n>1 && !all ? `<div class="npager"><button class="btn ghost" data-act="npage" data-p="${i-1}" ${i===0?"disabled":""}>← Previous</button><span class="muted">Page ${i+1} of ${n}</span><button class="btn ${last?"ghost":""}" data-act="npage" data-p="${i+1}" ${last?"disabled":""}>Next →</button></div>` : "";
+  return `${n>1?`<div class="ntoc"><label for="npick" class="muted">Pages</label><select id="npick" data-act-change="npick">${titles.map((x,k)=>`<option value="${k}" ${!all&&k===i?"selected":""}>Page ${k+1}: ${esc(x)}</option>`).join("")}${`<option value="all" ${all?"selected":""}>Show all pages</option>`}</select></div>`:""}
+  <article class="notes">${all ? t.notes : pages[i]}</article>
+  ${nav}
+  ${last ? `<div class="cta"><button class="btn" data-act="learned">I understand · Go to practice</button></div>` : ""}`;
+}
+
 function vTopic(){
   const t = TOPIC[S.topicId], l = learner(), st = stepState(l.id,t.id);
   const step = S.step || "learn";
@@ -309,8 +331,7 @@ function vTopic(){
   let body = "";
   if(step==="learn"){
     body = `${weak.length?`<div class="banner" style="margin-top:14px"><b>You got these wrong last time.</b> Look for the answers in the notes:<ul style="margin:6px 0 0;padding-left:20px">${weak.map(x=>`<li>${esc(getQ(t.id,x.q).q)}</li>`).join("")}</ul></div>`:""}
-    <article class="notes">${t.notes}</article>
-    <div class="cta"><button class="btn" data-act="learned">I understand · Go to practice</button></div>`;
+    ${notesPager(t)}`;
   } else if(step==="practise"){
     body = `<div class="panel"><h2>Practise first</h2>
       <p>Answer ${t.pq.length} practice questions. If you get one wrong, you'll get a hint and can try again until you get it right. Practice isn't marked.</p>
@@ -806,6 +827,7 @@ document.addEventListener("click", async e=>{
   else if(act==="topic"){ const tt=TOPIC[b.dataset.id]; if(tt){ S.subject=tt.subject; S.term=tt.term||0; } }
   if(act==="topic"){ S.topicId=b.dataset.id; S.step=null; if(l){ const st=stepState(l.id,S.topicId); S.step = !st.learn?"learn":!st.practise?"practise":!st.test?"test":"chapter"; } go("topic"); }
   else if(act==="step"){ S.step=b.dataset.step; go("topic"); }
+  else if(act==="npage"){ S.npage=+b.dataset.p; S.nall=false; render(); document.querySelector(".notes")?.scrollIntoView({block:"start"}); }
   else if(act==="learned"){
     const tid=S.topicId;
     if(l && !hasRead(l.id,tid)){ const rid=`${l.id}__${tid}`; S.reads.push({id:rid,learnerId:l.id,topicId:tid,stage:"notes",at:Date.now()}); write("reads", rid, {learnerId:l.id, topicId:tid, stage:"notes", at:Date.now()}); }
@@ -898,3 +920,9 @@ window.addEventListener("offline", ()=>softRender());
 
 if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(()=>{});
 startFirebase();
+
+document.addEventListener("change", e=>{
+  if(e.target.id!=="npick") return;
+  if(e.target.value==="all"){ S.nall = true; } else { S.nall = false; S.npage = +e.target.value; }
+  render(); document.querySelector(".notes")?.scrollIntoView({block:"start"});
+});

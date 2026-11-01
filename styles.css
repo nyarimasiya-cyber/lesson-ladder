@@ -283,3 +283,9 @@ details.more .form{border:0;padding:0;background:none}
 .witem .stext{font-weight:700;font-size:17px;text-align:center}
 .wgrid.one{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
 .wchip.miss{opacity:1;border-color:var(--bad);background:var(--bad-soft)}
+/* notes pages */
+.npager{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:14px 0 0}
+.ntoc{display:flex;align-items:center;gap:10px;margin:14px 0 0}
+.ntoc select{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:10px 12px;min-height:44px;font-size:15px}
+.notes h3{font-size:18px;margin:18px 0 6px}
+.notes .src{border-left:4px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0}
