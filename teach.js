@@ -83,7 +83,7 @@ function lessonTest(x, L){
   if(x.status==="marked"){
     const pct = Math.round(x.mark/L.outOf*100);
     return `<div class="score"><div class="big">${x.mark}<small>/${L.outOf}</small></div><div><div style="font-weight:700;font-size:20px">${pct}% · Level ${level(pct)[0]}</div><div class="muted">${praiseFor(pct)} Marked on ${fmtDate(x.markedAt)}.</div></div></div>
-    ${markSummary(x)}${pageStrip(x)}`;
+    ${markSummary(x)}${qBreakdown(x, L)}${pageStrip(x)}`;
   }
   if(x.status==="submitted") return `<div class="banner"><b>Submitted.</b> You handed in ${pages.length} page${pages.length===1?"":"s"} on ${fmtDate(x.submittedAt)}${minsTaken(x)!=null?`, after ${minsTaken(x)} minutes`:""}. Your teacher will mark it and you'll see your mark and comments here.</div>${pageStrip(x)}`;
   if(!x.testStartedAt && x.status!=="redo") return `<article class="notes">${L.testIntro}</article>
@@ -109,6 +109,36 @@ function pageStrip(x, canRemove){
   const pages = x.pages || []; if(!pages.length) return "";
   loadPages(S.code, pages);
   return `<div class="pages">${pages.map((p,i)=>`<figure>${pageImg(p,i)}<figcaption>Page ${i+1}${canRemove?` · <button class="linkbtn" data-act="l-rmpage" data-p="${p}">Remove</button>`:""}</figcaption></figure>`).join("")}</div>`;
+}
+/* ----- marks per question ----- */
+const qMax = q => { const m = String(q).match(/\((\d+)\)\s*$/); return m ? +m[1] : 1; };
+const qText = q => String(q).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+function qBreakdown(x, L){
+  const qm = x.qmarks || {}; if(!Object.keys(qm).length) return "";
+  const items = lessonTestItems(L).filter(it=>!it.head), qn = x.qnotes || {};
+  const right = items.filter(it=>qm[it.n]===qMax(it.q)).length, wrong = items.filter(it=>qm[it.n]===0).length, part = items.length - right - wrong;
+  return `<h3 class="h2s" style="margin-top:18px">Every question: what you got right and wrong</h3>
+  <div class="qkey"><span class="qk good">✔ ${right} right</span>${part?`<span class="qk part">½ ${part} partly right</span>`:""}<span class="qk bad">✗ ${wrong} wrong or not answered</span></div>
+  <div class="qlist">${items.map(it=>{ const mx = qMax(it.q), g = qm[it.n], cls = g==null?"":g===mx?"good":g>0?"part":"bad", ic = g==null?"–":g===mx?"✔":g>0?"½":"✗";
+    return `<div class="qi ${cls}"><div class="qtop"><span class="qic" aria-hidden="true">${ic}</span><span class="qq"><b>${it.n}.</b> ${esc(qText(it.q))}</span><span class="qm">${g==null?"–":g}/${mx}</span></div>
+      ${qn[it.n]?`<p class="qnote"><b>Teacher:</b> ${esc(qn[it.n])}</p>`:""}
+      ${g!==mx && L.memo[it.n-1]?`<p class="qans"><b>Correct answer:</b> ${esc(L.memo[it.n-1].split(" WHOLE TEST:")[0])}</p>`:""}</div>`;}).join("")}</div>`;
+}
+function qMarkRows(x, L){
+  const items = lessonTestItems(L).filter(it=>!it.head), qm = x.qmarks || {}, qn = x.qnotes || {};
+  return `<h3 style="margin:4px 0 0">Mark each question</h3>
+  <p class="muted" style="margin:0;font-size:14px">Tap the mark for each question. The total adds up by itself. The student and parent will see every question, your comment and the correct answer.</p>
+  <div class="qmark">${items.map(it=>{ const mx = qMax(it.q);
+    return `<div class="qrow"><div><b>${it.n}.</b> ${esc(qText(it.q))}</div><div class="muted" style="font-size:13px">Memo: ${esc(L.memo[it.n-1]||"")}</div>
+      <div class="seg" role="group" aria-label="Mark for question ${it.n}">${Array.from({length:mx+1},(_,v)=>`<button type="button" class="${qm[it.n]===v?"on":""}" data-act="t-q" data-n="${it.n}" data-v="${v}">${v===mx?`✔ ${v}`:v===0?"✗ 0":v}</button>`).join("")}</div>
+      <input class="qnote-in" data-n="${it.n}" maxlength="200" placeholder="Comment on this question (optional)" value="${esc(qn[it.n]||"")}" aria-label="Comment on question ${it.n}"></div>`;}).join("")}</div>
+  <p class="qtotal">Total from questions: <b id="qtotal">${Object.values(qm).reduce((a,b)=>a+b,0)}</b> / ${L.outOf} <span class="muted" id="qleft"></span></p>`;
+}
+function readQMarks(){
+  const qm = {}, qn = {};
+  document.querySelectorAll(".seg button.on").forEach(b=>qm[b.dataset.n] = +b.dataset.v);
+  document.querySelectorAll(".qnote-in").forEach(i=>{ if(i.value.trim()) qn[i.dataset.n] = i.value.trim(); });
+  return {qm, qn};
 }
 function markSummary(x){
   return `<div class="panel"><h3 style="margin:0 0 6px">Teacher's feedback</h3>
@@ -265,7 +295,8 @@ function vTMark(){
   <form class="form" id="msgForm"><label for="t-editmsg">Change the message they see at the top of the lesson<textarea id="t-editmsg" rows="2" maxlength="300">${esc(x.msg||"")}</textarea></label><div><button class="btn ghost" type="submit">Save message</button></div></form>
   ${["submitted","marked","redo"].includes(x.status)?"":notSent(x)?`<div class="banner">${esc(st?st.l.name:"The student")} uploaded ${x.pages.length} page${x.pages.length===1?"":"s"} but didn't press Submit. You can still mark the work now.</div>`:`<p class="muted">${esc(st?st.l.name:"The student")} hasn't uploaded any pages yet.</p>`}
   <h2 class="h2s">Mark and feedback</h2>
-  <form class="form" id="markForm">
+  <form class="form wide" id="markForm">
+    ${qMarkRows(x, L)}
     <label for="m-mark">Mark out of ${L.outOf}<input id="m-mark" type="number" min="0" max="${L.outOf}" inputmode="numeric" value="${x.mark??""}" required></label>
     <label for="m-method">Method<select id="m-method">${["","Shown clearly","Partly shown","Not shown"].map(v=>`<option ${x.method===v?"selected":""} value="${v}">${v||"Choose…"}</option>`).join("")}</select></label>
     <label for="m-neat">Neatness<select id="m-neat">${["","Neat","Fairly neat","Untidy"].map(v=>`<option ${x.neatness===v?"selected":""} value="${v}">${v||"Choose…"}</option>`).join("")}</select></label>
@@ -332,6 +363,7 @@ function vPLessons(k){
     return `<div class="tcard static"><span class="meta"><b>${esc(L.title)}</b><span class="pill ${cls}">${st}</span></span>
       <span class="muted" style="font-size:14px">Given ${fmtDate(x.assignedAt)} · practice ${Object.values(ex).filter(Boolean).length}/5 right first time${minsTaken(x)!=null?` · test took ${minsTaken(x)} min${x.pauses?`, ${pauseNote(x)}`:""}`:""}${x.status==="marked"?` · <b>Mark ${x.mark}/${L.outOf} (${Math.round(x.mark/L.outOf*100)}%)</b>`:""}</span>
       ${x.status==="marked"||x.status==="redo" ? markSummary(x) : ""}
+      ${(x.status==="marked"||x.status==="redo") && x.qmarks && Object.keys(x.qmarks).length ? `<details class="more"><summary>See every question: right and wrong</summary>${qBreakdown(x, L)}</details>` : ""}
       ${(x.pages||[]).length ? (open ? pageStrip(x) : `<button class="linkbtn" data-act="p-pages" data-id="${esc(x.id)}">See his written work (${x.pages.length} pages)</button>`) : ""}
     </div>`;}).join("")}</div>`;
 }
@@ -362,11 +394,15 @@ document.addEventListener("click", e=>{
   else if(act==="t-zoomclose"){ S.zoom = null; render(); }
   else if(act==="t-mark"){ S.tedit = null; S.tsel = {code:b.dataset.c, id:b.dataset.id}; go("tmark"); }
   else if(act==="t-chip"){ const ta = document.getElementById("m-fb"); ta.value = (ta.value ? ta.value.trim()+" " : "") + b.dataset.t; }
-  else if(act==="t-redo"){ const {code,id} = S.tsel, x = findLesson(code,id); x.status = "redo"; x.feedback = document.getElementById("m-fb").value.trim(); x.method = document.getElementById("m-method").value; x.neatness = document.getElementById("m-neat").value; saveLesson(code, x); go("teacher"); S.note = "Sent back for redoing."; render(); }
+  else if(act==="t-redo"){ const {code,id} = S.tsel, x = findLesson(code,id); { const {qm, qn} = readQMarks(); x.qmarks = qm; x.qnotes = qn; } x.status = "redo"; x.feedback = document.getElementById("m-fb").value.trim(); x.method = document.getElementById("m-method").value; x.neatness = document.getElementById("m-neat").value; saveLesson(code, x); go("teacher"); S.note = "Sent back for redoing."; render(); }
   else if(act==="t-edit"){ S.tedit = S.tsel && S.tsel.id; render(); window.scrollTo(0,0); }
   else if(act==="t-editno"){ S.tedit = null; render(); window.scrollTo(0,0); }
   else if(act==="t-editreset"){ const {code,id} = S.tsel, x = findLesson(code,id); delete x.custom; saveLesson(code, x); S.tedit = null; S.note = "The lesson is back to the original."; render(); window.scrollTo(0,0); }
   else if(act==="t-fmt"){ e.preventDefault(); const f = b.dataset.f; if(f==="h2") document.execCommand("formatBlock", false, "h3"); else document.execCommand(f); }
+  else if(act==="t-q"){ const n = b.dataset.n; b.parentNode.querySelectorAll("button").forEach(o=>o.classList.toggle("on", o===b));
+    const {qm} = readQMarks(), tot = Object.values(qm).reduce((a,c)=>a+c,0), L = lessonOf(findLesson(S.tsel.code, S.tsel.id)), all = lessonTestItems(L).filter(it=>!it.head).length, done = Object.keys(qm).length;
+    document.getElementById("qtotal").textContent = tot; document.getElementById("m-mark").value = tot;
+    document.getElementById("qleft").textContent = done<all ? `(${all-done} question${all-done===1?"":"s"} still to mark)` : "(all marked)"; }
   else if(act==="t-del"){ S.tdel = b.dataset.id; render(); }
   else if(act==="t-delno"){ S.tdel = null; render(); }
   else if(act==="t-delyes"){
@@ -435,6 +471,7 @@ document.addEventListener("submit", async e=>{
   if(e.target.id==="markForm"){
     e.preventDefault();
     const {code,id} = S.tsel, x = findLesson(code,id), L = lessonOf(x), m = Math.max(0, Math.min(L.outOf, Math.round(+document.getElementById("m-mark").value)));
+    const {qm, qn} = readQMarks(); x.qmarks = qm; x.qnotes = qn;
     Object.assign(x, {mark:m, method:document.getElementById("m-method").value, neatness:document.getElementById("m-neat").value, feedback:document.getElementById("m-fb").value.trim(), status:"marked", markedAt:Date.now()});
     saveLesson(code, x); go("teacher"); S.note = "Mark saved. The student and parent can see it now."; render();
   }
