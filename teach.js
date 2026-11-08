@@ -23,13 +23,14 @@ function allStudents(){
   (S.links||[]).forEach(x=>{ const f = T.fams[x.id]; if(f) f.learners.forEach(l=>out.push({code:x.id, fam:x.label||"Linked family", l})); });
   return out;
 }
-const lessonsOf = code => code===S.code ? (S.lessons||[]) : (T.fams[code]?.lessons || []);
+const lessonsOf = code => (code===S.code ? (S.lessons||[]) : (T.fams[code]?.lessons || [])).filter(x=>LESSONS[x.lessonKey]);
 function allLessons(){ const out=[]; allStudents().forEach(s=>lessonsOf(s.code).filter(x=>x.learnerId===s.l.id).forEach(x=>out.push({...s, x}))); return out.sort((a,b)=>(b.x.assignedAt||0)-(a.x.assignedAt||0)); }
 function saveLesson(code, x){ const {id, ...data} = x; famDoc(code).collection("lessons").doc(id).set(data).catch(()=>{ S.note="The lesson didn't save. Check your connection."; render(); }); }
 
 /* ----- status ----- */
 const LSTATUS = {assigned:["New","p-warn"], started:["In progress","p-warn"], submitted:["Waiting for marking","p-none"], marked:["Marked","p-good"], redo:["Redo requested","p-bad"]};
-const lstatus = x => LSTATUS[x.status] || LSTATUS.assigned;
+const notSent = x => (x.pages||[]).length>0 && !["submitted","marked"].includes(x.status);
+const lstatus = x => notSent(x) ? ["Pages uploaded, not submitted","p-bad"] : (LSTATUS[x.status] || LSTATUS.assigned);
 /* test time excludes pauses (toilet breaks); pauses are counted so the teacher and parent can see them */
 const pausedNow = x => x.pausedAt ? Date.now() - x.pausedAt : 0;
 const usedMs = x => (x.submittedAt || Date.now()) - x.testStartedAt - (x.pausedMs||0) - pausedNow(x);
@@ -39,7 +40,7 @@ function praiseFor(pct){ return pct>=80 ? "Excellent work!" : pct>=60 ? "Good wo
 
 /* ---------- learner side ---------- */
 function lessonCards(l){
-  const mine = (S.lessons||[]).filter(x=>x.learnerId===l.id).sort((a,b)=>b.assignedAt-a.assignedAt);
+  const mine = (S.lessons||[]).filter(x=>x.learnerId===l.id && LESSONS[x.lessonKey]).sort((a,b)=>b.assignedAt-a.assignedAt);
   if(!mine.length) return "";
   return `<h2 class="h2s">📘 From your teacher</h2><div class="topiclist" style="margin-bottom:20px">${mine.slice(0,4).map(x=>{ const L = lessonOf(x); const [st,cls] = lstatus(x);
     return `<button class="tcard" data-act="l-open" data-id="${esc(x.id)}"><span class="eyebrow">${esc(sname(L.subject, l.grade))} · teacher lesson</span><h3>${esc(L.title)}</h3>
@@ -96,7 +97,8 @@ function lessonTest(x, L){
   return `${x.status==="redo"?`<div class="banner"><b>Your teacher asked you to redo this.</b> ${esc(x.feedback||"")} Fix your work, take new photos and submit again.</div>`
     : `<div class="timer ${left===0?"over":""}" aria-live="polite"><span>⏱</span><b id="ltimer">${left===0?"Time is up":mm(left)}</b><span class="muted">${left===0?"Put your pen down and upload your pages.":"left"}</span>${left>0?`<button class="btn ghost small" data-act="l-pause">⏸ Pause</button>`:""}</div>${x.pauses?`<p class="muted" style="font-size:14px;margin:-4px 0 10px">You have ${pauseNote(x)}.</p>`:""}`}
   <article class="notes ltest">${L.testIntro}${items.map(it=>it.head ? it.head : `<p class="tq"><b>${it.n}.</b> ${it.q}</p>`).join("")}</article>
-  <h2 class="h2s">Upload your written work</h2>
+  <h2 class="h2s" id="lup">Upload your written work</h2>
+  ${pages.length?`<div class="banner"><b>Not handed in yet.</b> When all your pages are added, press <b>Submit my test</b> at the bottom, or your teacher won't get your work.</div>`:""}
   <p class="muted">Take a clear, well-lit photo of each page, in order. Make sure the whole page is in the photo and the writing is sharp.</p>
   ${pageStrip(x, true)}
   <label class="btn ghost upl">📷 Add a photo of a page<input type="file" id="lupload" accept="image/*" multiple hidden></label>
@@ -106,7 +108,7 @@ function lessonTest(x, L){
 function pageStrip(x, canRemove){
   const pages = x.pages || []; if(!pages.length) return "";
   loadPages(S.code, pages);
-  return `<div class="pages">${pages.map((p,i)=>`<figure>${T.pages[p]?`<a href="#" data-act="l-zoom" data-p="${p}"><img src="${T.pages[p]}" alt="Page ${i+1}"></a>`:`<div class="ph">Loading…</div>`}<figcaption>Page ${i+1}${canRemove?` · <button class="linkbtn" data-act="l-rmpage" data-p="${p}">Remove</button>`:""}</figcaption></figure>`).join("")}</div>`;
+  return `<div class="pages">${pages.map((p,i)=>`<figure>${pageImg(p,i)}<figcaption>Page ${i+1}${canRemove?` · <button class="linkbtn" data-act="l-rmpage" data-p="${p}">Remove</button>`:""}</figcaption></figure>`).join("")}</div>`;
 }
 function markSummary(x){
   return `<div class="panel"><h3 style="margin:0 0 6px">Teacher's feedback</h3>
@@ -114,11 +116,12 @@ function markSummary(x){
     ${x.feedback?`<p style="margin:8px 0 0">${esc(x.feedback)}</p>`:""}</div>`;
 }
 
+const pageImg = (p,i) => T.pages[p]==="missing" ? `<div class="ph">This photo didn't upload. Ask for it to be added again.</div>` : T.pages[p] ? `<a href="#" data-act="l-zoom" data-p="${p}"><img src="${T.pages[p]}" alt="Page ${i+1}"></a>` : `<div class="ph">Loading…</div>`;
 /* load page images from any family on demand */
 function loadPages(code, ids){
   const need = ids.filter(p=>!(p in T.pages)); if(!need.length) return;
   need.forEach(p=>{ T.pages[p] = null;
-    famDoc(code).collection("pages").doc(p).get().then(d=>{ T.pages[p] = d.exists ? d.data().img : ""; render(); }).catch(()=>{ T.pages[p] = ""; }); });
+    famDoc(code).collection("pages").doc(p).get().then(d=>{ T.pages[p] = d.exists ? d.data().img : "missing"; render(); }).catch(()=>{ delete T.pages[p]; setTimeout(render, 4000); }); });
 }
 
 /* shrink photos so each fits in one database document */
@@ -146,10 +149,10 @@ document.addEventListener("change", async e=>{
     try{ const img = await compress(f), pid = `${x.id}_${uid()}`;
       T.pages[pid] = img;
       await famRef.collection("pages").doc(pid).set({lessonId:x.id, img, at:Date.now()});
-      x.pages = [...(x.pages||[]), pid]; saveLesson(S.code, x);
+      const cur = curLesson() || x; cur.pages = [...new Set([...(cur.pages||[]), ...(x.pages||[]), pid])]; x.pages = cur.pages; saveLesson(S.code, cur);
     }catch(err){ S.note = "One photo couldn't be added. Try taking it again."; }
   }
-  T.busy = false; render();
+  T.busy = false; render(); document.querySelector("[data-act=l-submit]")?.scrollIntoView({block:"center"});
 });
 
 /* ---------- teacher workspace (a device that only teaches) ---------- */
@@ -191,7 +194,7 @@ function teachView(code, lid){
 
 /* ---------- teacher side ---------- */
 function vTeacher(){
-  const studs = allStudents(), lessons = allLessons(), toMark = lessons.filter(o=>o.x.status==="submitted");
+  const studs = allStudents(), lessons = allLessons(), toMark = lessons.filter(o=>o.x.status==="submitted" || notSent(o.x));
   const opts = studs.map((s,i)=>`<option value="${i}">${esc(s.l.name)} (Grade ${gradeLabel(s.l.grade)}) · ${esc(s.fam)}</option>`).join("");
   const sel = studs[+(S.tstud||0)];
   const lopts = Object.entries(LESSONS).filter(([k,L])=>!sel || +sel.l.grade===L.grade).map(([k,L])=>`<option value="${k}">${esc(L.title)}</option>`).join("");
@@ -201,14 +204,14 @@ function vTeacher(){
   <p class="muted" style="margin:0 0 10px">Tap a child to see their full progress report: practice calendar, subjects, tests, weak spots and lessons.</p>
   ${famProgress()}
   <h2 class="h2s">Work to mark ${toMark.length?`<span class="pill p-bad">${toMark.length}</span>`:""}</h2>
-  ${toMark.length?`<div class="topiclist">${toMark.map(o=>`<button class="tcard" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}"><b>${esc(o.l.name)}</b><span class="muted">${esc(lessonOf(o.x).title)}</span><span class="muted">Submitted ${fmtDate(o.x.submittedAt)} · ${(o.x.pages||[]).length} pages${minsTaken(o.x)!=null?` · ${minsTaken(o.x)} min`:""}</span></button>`).join("")}</div>`:`<p class="muted">Nothing to mark right now.</p>`}
+  ${toMark.length?`<div class="topiclist">${toMark.map(o=>`<button class="tcard" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}"><b>${esc(o.l.name)}</b><span class="muted">${esc(lessonOf(o.x).title)}</span><span class="muted">${notSent(o.x)?`<span class="warnword">Not submitted yet</span>`:`Submitted ${fmtDate(o.x.submittedAt)}`} · ${(o.x.pages||[]).length} pages${minsTaken(o.x)!=null?` · ${minsTaken(o.x)} min`:""}</span></button>`).join("")}</div>`:`<p class="muted">Nothing to mark right now.</p>`}
   <h2 class="h2s">Give a lesson</h2>
   ${studs.length?`<form class="form" id="assignForm">
     <label for="t-stud">Student<select id="t-stud">${opts}</select></label>
     <label for="t-lesson">Lesson<select id="t-lesson">${lopts||`<option value="">No lessons for this grade yet</option>`}</select></label>
     <label for="t-msg">Message to the student (optional)<textarea id="t-msg" rows="2" maxlength="300" placeholder="e.g. Do this before Friday. Remember: neat work and show your method."></textarea></label>
     <div><button class="btn" type="submit" ${lopts?"":"disabled"}>Give this lesson</button></div></form>`:`<p class="muted">Add a learner or link a family first.</p>`}
-  ${lessons.length?`<h2 class="h2s">All lessons</h2><div class="feed">${lessons.map(o=>{const [st,cls]=lstatus(o.x), L=lessonOf(o.x); return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}).join("")}</div>`:""}
+  ${lessons.length?`<h2 class="h2s">All lessons</h2><div class="feed">${lessons.map(o=>{const [st,cls]=lstatus(o.x), L=lessonOf(o.x); return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${(o.x.pages||[]).length?` · ${o.x.pages.length} page${o.x.pages.length===1?"":"s"} uploaded`:""}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}).join("")}</div>`:""}
   <h2 class="h2s">Students in other families</h2>
   <p class="muted" style="margin:0 0 10px">To teach a child from another family, ask their parent for their family code (Parent → Family code on their device). Their parent will see the lessons and marks in their own app.</p>
   ${(S.links||[]).length?`<div class="feed" style="margin-bottom:12px">${S.links.map(x=>`<div><span><b>${esc(x.label||"Linked family")}</b> · ${(T.fams[x.id]?.learners||[]).map(l=>esc(l.name)).join(", ")||"loading…"}</span><button class="linkbtn" data-act="t-unlink" data-c="${x.id}">Remove</button></div>`).join("")}</div>`:""}
@@ -233,13 +236,13 @@ function vTMark(){
     <div class="stat"><div class="eyebrow">Pages</div><div class="v">${(x.pages||[]).length}</div></div>
   </div>
   <h2 class="h2s">His written work</h2>
-  ${(x.pages||[]).length?`<div class="pages big">${x.pages.map((p,i)=>`<figure>${T.pages[p]?`<a href="#" data-act="l-zoom" data-p="${p}"><img src="${T.pages[p]}" alt="Page ${i+1}"></a>`:`<div class="ph">Loading…</div>`}<figcaption>Page ${i+1} · tap to enlarge</figcaption></figure>`).join("")}</div>`:`<p class="muted">No pages uploaded.</p>`}
+  ${(x.pages||[]).length?`<div class="pages big">${x.pages.map((p,i)=>`<figure>${pageImg(p,i)}<figcaption>Page ${i+1} · tap to enlarge</figcaption></figure>`).join("")}</div>`:`<p class="muted">No pages uploaded.</p>`}
   <details class="more"><summary>Memo (answers for marking)</summary><ol class="memo">${L.memo.map(m=>`<li>${esc(m)}</li>`).join("")}</ol></details>
   <div class="row" style="margin:14px 0"><button class="btn" data-act="t-edit">✏️ Edit this lesson</button></div>
   <details class="more"><summary>See the lesson as the student sees it</summary><article class="notes"><p class="muted">${esc(L.intro)}</p>${L.notes}<h2>Worked examples</h2>${L.examples}<h2>Practice</h2><ol>${L.practice.map(q=>`<li>${esc(q.q)}<br><span class="muted">Hint: ${esc(q.h)}</span></li>`).join("")}</ol><h2>Test</h2>${L.testIntro}${lessonTestItems(L).map(t=>t.head?t.head:`<p><b>${t.n}.</b> ${esc(t.q)}</p>`).join("")}</article></details>
   <h2 class="h2s">Message to the student</h2>
   <form class="form" id="msgForm"><label for="t-editmsg">Change the message they see at the top of the lesson<textarea id="t-editmsg" rows="2" maxlength="300">${esc(x.msg||"")}</textarea></label><div><button class="btn ghost" type="submit">Save message</button></div></form>
-  ${["submitted","marked","redo"].includes(x.status)?"":`<p class="muted">${esc(st?st.l.name:"The student")} hasn't submitted the test yet. You can mark it once the pages are uploaded.</p>`}
+  ${["submitted","marked","redo"].includes(x.status)?"":notSent(x)?`<div class="banner">${esc(st?st.l.name:"The student")} uploaded ${x.pages.length} page${x.pages.length===1?"":"s"} but didn't press Submit. You can still mark the work now.</div>`:`<p class="muted">${esc(st?st.l.name:"The student")} hasn't uploaded any pages yet.</p>`}
   <h2 class="h2s">Mark and feedback</h2>
   <form class="form" id="markForm">
     <label for="m-mark">Mark out of ${L.outOf}<input id="m-mark" type="number" min="0" max="${L.outOf}" inputmode="numeric" value="${x.mark??""}" required></label>
@@ -301,7 +304,7 @@ function readEdits(x){
 
 /* ---------- parent view ---------- */
 function vPLessons(k){
-  const mine = (S.lessons||[]).filter(x=>x.learnerId===k.id).sort((a,b)=>b.assignedAt-a.assignedAt);
+  const mine = (S.lessons||[]).filter(x=>x.learnerId===k.id && LESSONS[x.lessonKey]).sort((a,b)=>b.assignedAt-a.assignedAt);
   if(!mine.length) return "";
   return `<h2 class="h2s">Lessons from the teacher</h2><div class="topiclist">${mine.map(x=>{ const L = lessonOf(x), [st,cls] = lstatus(x), ex = x.ex||{};
     const open = S.plopen===x.id;
