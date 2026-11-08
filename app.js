@@ -539,6 +539,7 @@ function vParent(){
       <span class="muted">Grade ${gradeLabel(k.grade)} · last active ${lastAt?fmtDate(lastAt):"never"}</span>
       <span>${isGradeR(k)?`Writing: ${wRecs(k.id).length} exercises`:avgTxt(sm.avg)}</span>
       <span class="muted">Today: ${(n=>n?`${n} activit${n===1?"y":"ies"}`:"nothing yet")(eventsIn(k.id,"today").length)}</span>
+      <span class="effline ${effortVerdict(k.id).cls}">${weekDots(k.id)}<span>${effortVerdict(k.id).head}: ${effortVerdict(k.id).last14}/14 days</span></span>
       ${isGradeR(k)?"":`<span class="muted">${sm.tried} topics tested${sm.weak?` · <span class="warnword">${sm.weak} weak spot${sm.weak===1?"":"s"}</span>`:""}</span>`}</button>`;}).join("")}</div>
   <button class="mockbar" data-act="teacher"><span><b>👩‍🏫 Teacher</b><span class="muted">Give lessons, mark written tests, link other families</span></span><span aria-hidden="true">›</span></button>
   ${recent.length?`<h2 class="h2s">Recent activity</h2><div class="feed" style="margin-bottom:24px">${recent.map(a=>{const k=S.learners.find(x=>x.id===a.learnerId); const ev=evOf(a); return `<div><span><b>${esc(k.name)}</b> · ${esc(ev.title)}</span><span class="num">${ev.score||esc(ev.label)}</span></div>`}).join("")}</div>`:""}
@@ -558,12 +559,57 @@ function vParent(){
     : `<button class="btn ghost" data-act="askleave">Disconnect this device</button>`}</div>`;
 }
 
+/* ---------- practice picture: how often the child actually works ---------- */
+function dayCounts(lid){ const c = {}; eventsFor(lid).forEach(e=>{ const k = dayKey(e.at); c[k] = (c[k]||0) + 1; }); return c; }
+const heatLevel = n => !n ? 0 : n<=2 ? 1 : n<=5 ? 2 : n<=9 ? 3 : 4;
+function daysBack(n){ const out=[]; const d=new Date(); d.setHours(12,0,0,0); for(let i=n-1;i>=0;i--){ const x=new Date(d); x.setDate(d.getDate()-i); out.push(x); } return out; }
+function effortVerdict(lid){
+  const c = dayCounts(lid), last14 = daysBack(14).filter(d=>c[dayKey(d)]).length;
+  const all = eventsFor(lid), lastAt = all.length ? all[0].at : null;
+  const ago = lastAt ? Math.floor((new Date().setHours(0,0,0,0) - new Date(lastAt).setHours(0,0,0,0))/86400000) : null;
+  const [cls, head, tip] = last14>=8 ? ["good","Practising regularly","Keep it up: regular practice is what moves marks."]
+    : last14>=4 ? ["warn","Some practice","Aim for at least 5 days a week, even 20 minutes a day."]
+    : last14>=1 ? ["bad","Very little practice","Marks are unlikely to improve with this little practice."]
+    : ["bad","No practice","Nothing has been done in the last 2 weeks."];
+  return {cls, head, tip, last14, ago};
+}
+function weekDots(lid){
+  const c = dayCounts(lid);
+  return `<span class="wdots" aria-label="Days practised this past week">${daysBack(7).map(d=>{ const n=c[dayKey(d)]||0; return `<i class="h${heatLevel(n)}" title="${d.toLocaleDateString("en-ZA",{weekday:"short",day:"numeric",month:"short"})}: ${n} activit${n===1?"y":"ies"}"></i>`; }).join("")}</span>`;
+}
+function effortPanel(k){
+  const c = dayCounts(k.id), v = effortVerdict(k.id);
+  // 12 weeks, Monday to Sunday columns
+  const end = new Date(); end.setHours(12,0,0,0);
+  const start = new Date(end); start.setDate(end.getDate() - ((end.getDay()+6)%7) - 7*11);
+  const weeks = [];
+  for(let w=0; w<12; w++){ const col=[]; for(let d=0; d<7; d++){ const x=new Date(start); x.setDate(start.getDate()+w*7+d); col.push(x); } weeks.push(col); }
+  const wkTotals = weeks.map(col=>col.reduce((n,d)=>n+(d<=end?(c[dayKey(d)]||0):0),0)), wkDays = weeks.map(col=>col.filter(d=>d<=end&&c[dayKey(d)]).length);
+  const maxT = Math.max(5, ...wkTotals);
+  const tests = S.attempts.filter(a=>a.learnerId===k.id && (kindOf(a)==="topic"||a.kind==="chapter"||a.kind==="mock") && a.at > Date.now()-28*86400000);
+  const avg = tests.length ? Math.round(tests.reduce((s,a)=>s+pctOf(a),0)/tests.length) : null;
+  const daysTotal = Object.keys(c).filter(key=>keyDate(key) >= start).length;
+  return `<section class="effort ${v.cls}">
+    <div class="effhead"><span class="dot"></span><div><b>${v.head}</b><div class="muted">${v.last14} of the last 14 days had practice${v.ago==null?" · never practised yet":v.ago===0?" · practised today":` · last practised ${v.ago} day${v.ago===1?"":"s"} ago`}. ${v.tip}</div></div></div>
+    <h3 class="h3s">Practice calendar (last 12 weeks)</h3>
+    <div class="heat" role="img" aria-label="${daysTotal} days with practice in the last 12 weeks">
+      <div class="hrows">${["Mon","","Wed","","Fri","","Sun"].map(x=>`<span>${x}</span>`).join("")}</div>
+      ${weeks.map(col=>`<div class="hcol">${col.map(d=>{ if(d>end) return `<i class="future"></i>`; const n=c[dayKey(d)]||0; return `<i class="h${heatLevel(n)}" title="${d.toLocaleDateString("en-ZA",{weekday:"short",day:"numeric",month:"short"})}: ${n} activit${n===1?"y":"ies"}"></i>`; }).join("")}</div>`).join("")}
+    </div>
+    <div class="hkey"><span>Less</span><i class="h0"></i><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i><span>More</span><span class="muted" style="margin-left:auto">${daysTotal} days with practice</span></div>
+    <h3 class="h3s">Activities per week</h3>
+    <div class="wkbars">${wkTotals.map((t,i)=>`<div class="wkb" title="Week of ${weeks[i][0].toLocaleDateString("en-ZA",{day:"numeric",month:"short"})}: ${t} activities on ${wkDays[i]} days"><span class="num">${t||""}</span><i style="height:${Math.round(t/maxT*100)}%"></i><small>${i%3===0||i===11?weeks[i][0].toLocaleDateString("en-ZA",{day:"numeric",month:"short"}).replace(" Sept"," Sep"):""}</small></div>`).join("")}</div>
+    <p class="muted" style="margin:10px 0 0">An activity is reading notes, a practice round, a test, a mock paper, weak-spot practice or a teacher lesson.${avg!=null?` Average test score over the last 4 weeks: <b>${avg}%</b> from ${tests.length} test${tests.length===1?"":"s"}.`:" No tests written in the last 4 weeks."}</p>
+  </section>`;
+}
+
 function vPChild(){
   const k = pkid(); if(!k) return vParent();
   const mine = topicsFor(k), sm = kidSummary(k, mine);
   const subs = Object.keys(SUBJECTS).filter(s=>mine.some(t=>t.subject===s));
   return `${pcrumbs([{label:k.name}])}
   <h1 class="pagetitle">${esc(k.name)} <span class="muted" style="font-size:18px">Grade ${gradeLabel(k.grade)}</span></h1>
+  ${effortPanel(k)}
   ${isGradeR(k)?"":`<div class="strip">
     <div class="stat"><div class="eyebrow">Topics tested</div><div class="v">${sm.tried}/${sm.total}</div></div>
     <div class="stat"><div class="eyebrow">Best average</div><div class="v">${sm.avg==null?"–":sm.avg+"%"}</div><div class="muted" style="font-size:13px">${sm.avg==null?"":"Level "+level(sm.avg)[0]+" · "+level(sm.avg)[1]}</div></div>
