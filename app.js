@@ -161,6 +161,8 @@ const installTip = () => standalone() ? "" :
 function nav(){
   const n = document.getElementById("nav"); const l = learner();
   if(S.mode!=="ready"){ n.innerHTML = installEvt?`<button data-act="install">Install app</button>`:""; return; }
+  if(S.tview){ n.innerHTML = `<button data-act="teachback">← Back to Teacher</button>`; return; }
+  if(S.family && S.family.teacher){ n.innerHTML = `${installEvt ? `<button data-act="install">Install app</button>` : ""}<button data-act="teacher" aria-pressed="true">Teacher</button>${S.parentOk?`<button data-act="lockparent">Lock</button>`:""}`; return; }
   n.innerHTML = `
     ${installEvt ? `<button data-act="install">Install app</button>` : ""}
     ${l ? `<button data-act="home" aria-pressed="${!["parent","pick","parentlock"].includes(S.view)}">${esc(l.name)} · Gr ${gradeLabel(l.grade)}</button>` : ""}
@@ -174,17 +176,23 @@ function vSetup(){
 }
 
 function vAuth(){
+  if(S.newCode && S.newTeacher) return `<div class="auth">
+  <section class="hello"><span class="eyebrow">Teacher workspace created</span><h1>Your teacher code</h1>
+  <p class="muted">Use this code and your PIN to open your teacher workspace on another computer or phone. Keep it private.</p></section>
+  <div class="stat" style="text-align:center"><div class="v" style="font-size:clamp(26px,8vw,40px);letter-spacing:.06em">${showCode(S.newCode)}</div></div>
+  <div class="row"><button class="btn ghost" data-act="copycode">Copy code</button><button class="btn" data-act="codedone">I've written it down</button></div></div>`;
   if(S.newCode) return `<div class="auth">
   <section class="hello"><span class="eyebrow">Family created</span><h1>Your family code</h1>
   <p class="muted">Type this code on each child's PC to connect it. Write it down and keep it private; anyone with the code can see your children's progress.</p></section>
   <div class="stat" style="text-align:center"><div class="v" style="font-size:clamp(26px,8vw,40px);letter-spacing:.06em">${showCode(S.newCode)}</div></div>
   <div class="row"><button class="btn ghost" data-act="copycode">Copy code</button><button class="btn" data-act="codedone">I've written it down</button></div></div>`;
+  if(S.authTab==="teacher" && !LOCAL) return vTeacherAuth();
   const join = S.authTab!=="new" && !LOCAL;
   if(LOCAL) S.authTab = "new";
   return `<div class="auth">
   <section class="hello"><span class="eyebrow">CAPS-aligned learning</span><h1>${join?"Connect this device":"Start a new family"}</h1>
   <p class="muted">${LOCAL?"Choose a parent PIN, then add your child. Their results and the parent report are kept on this device.":join?"Type the family code shown in the parent area on the parent's phone. You only do this once per device.":"A parent does this once, on their own phone. You'll get a family code to type on the kids' PCs."}</p></section>
-  ${LOCAL?`<p class="tip">This copy isn't connected to the online database yet, so progress is saved on this device only. Set up the family here, on the device the child uses.</p>`:`<div class="tabs"><button data-act="authtab" data-tab="join" aria-pressed="${join}">Join with family code</button><button data-act="authtab" data-tab="new" aria-pressed="${!join}">New family</button></div>`}
+  ${LOCAL?`<p class="tip">This copy isn't connected to the online database yet, so progress is saved on this device only. Set up the family here, on the device the child uses.</p>`:`<div class="tabs"><button data-act="authtab" data-tab="join" aria-pressed="${join}">Join with family code</button><button data-act="authtab" data-tab="new" aria-pressed="${!join}">New family</button><button data-act="authtab" data-tab="teacher" aria-pressed="false">Teacher</button></div>`}
   <form class="form" id="authForm" novalidate>
     ${join
       ? `<label for="a-code">Family code<input id="a-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" maxlength="16" required></label>`
@@ -509,9 +517,10 @@ function vResult(){
 }
 
 function vParentLock(){
-  return `<div class="auth"><section class="hello"><span class="eyebrow">Parent area</span><h1>Enter the parent PIN</h1></section>
+  const t = S.family && S.family.teacher;
+  return `<div class="auth"><section class="hello"><span class="eyebrow">${t?"Teacher workspace":"Parent area"}</span><h1>Enter the ${t?"teacher":"parent"} PIN</h1></section>
   <form class="form" id="pinForm">
-    <label for="p-pin">Parent PIN<input id="p-pin" inputmode="numeric" maxlength="4" autocomplete="off" required></label>
+    <label for="p-pin">${t?"Teacher":"Parent"} PIN<input id="p-pin" inputmode="numeric" maxlength="4" autocomplete="off" required></label>
     <label class="check" for="p-remember"><input type="checkbox" id="p-remember"> Remember this phone as a parent device</label>
     <p class="err" id="p-err" role="alert"></p>
     <div><button class="btn" type="submit">Open report</button></div>
@@ -526,7 +535,7 @@ function kidSummary(k, list){
 }
 const avgTxt = a => a==null ? "No tests yet" : `${a}% · Level ${level(a)[0]}`;
 function pkid(){ return S.learners.find(x=>x.id===S.pkid); }
-function pcrumbs(extra){ return crumbs([{act:"parent",label:"Parent"}, ...extra]); }
+function pcrumbs(extra){ return crumbs([S.tview ? {act:"teachback",label:"Teacher"} : {act:"parent",label:"Parent"}, ...extra]); }
 
 function vParent(){
   const kids = S.learners.slice().sort((a,b)=>a.name.localeCompare(b.name));
@@ -625,7 +634,7 @@ function vPChild(){
     const x = kidSummary(k, mine.filter(t=>t.subject===s));
     return `<button class="tile" data-act="psubj" data-s="${s}"><b>${esc(sname(s,k.grade))}</b>
       <span class="muted">${x.tried}/${x.total} tested · ${x.avg==null?"no tests yet":x.avg+"%"}${x.weak?` · <span class="warnword">${x.weak} weak</span>`:""}</span></button>`;}).join("")}</div>
-  <div class="tools">${S.confirmRemove===k.id
+  <div class="tools" ${S.tview?"hidden":""}>${S.confirmRemove===k.id
     ? `<span>Remove ${esc(k.name)}? Their results are kept but hidden.</span><button class="btn ghost danger" data-act="remove" data-id="${esc(k.id)}">Yes, remove</button><button class="btn ghost" data-act="cancelremove">Cancel</button>`
     : `<button class="btn ghost danger" data-act="askremove" data-id="${esc(k.id)}">Remove learner</button>`}</div>`;
 }
@@ -778,6 +787,8 @@ function render(){
   if(S.mode==="loading") html += `<p class="muted">Loading…</p>`;
   else if(S.mode==="setup") html += vSetup();
   else if(S.mode==="nofamily") html += vAuth();
+  else if(S.family && S.family.teacher && !S.tview) html += !S.parentOk ? vParentLock() : S.view==="tmark" ? vTMark() : vTeacher();
+  else if(S.tview && S.view==="parent") html += vTeacher();
   else if(["parent","pchild","psubject","pterm","pact","pday","teacher","tmark"].includes(S.view)) html += !S.parentOk ? vParentLock() : S.view==="teacher" ? vTeacher() : S.view==="tmark" ? vTMark() : S.view==="pact" ? vPActivity() : S.view==="pday" ? vPDay(false) : S.view==="pchild" ? vPChild() : S.view==="psubject" ? vPSubject() : S.view==="pterm" ? vPTerm() : vParent();
   else if(S.view==="pick" || !learner()) html += vPick();
   else if(S.view==="subject") html += vSubject();
@@ -868,7 +879,7 @@ document.addEventListener("click", async e=>{
     const text = showCode(S.newCode || S.code);
     try{ await navigator.clipboard.writeText(text); b.textContent="Copied"; }catch{ b.textContent=text; }
   }
-  else if(act==="codedone"){ const c=S.newCode; S.newCode=null; pref.set("ll-family",c); pref.set("ll-parent-device",c); S.view="parent"; openFamily(c); }
+  else if(act==="codedone"){ const c=S.newCode; S.view = S.newTeacher ? "teacher" : "parent"; S.newCode=null; S.newTeacher=false; pref.set("ll-family",c); pref.set("ll-parent-device",c); openFamily(c); }
   else if(act==="home"){ go(l?"home":"pick"); }
   else if(act==="pick"){ go("pick"); }
   else if(act==="parent"){ go("parent"); }
@@ -924,7 +935,7 @@ document.addEventListener("click", async e=>{
   else if(act==="askremove"){ S.confirmRemove=b.dataset.id; render(); }
   else if(act==="cancelremove"){ S.confirmRemove=null; render(); }
   else if(act==="remove"){ const id=b.dataset.id; S.confirmRemove=null; famRef.collection("learners").doc(id).delete().catch(()=>{}); if(S.learnerId===id){ S.learnerId=null; pref.del("ll-learner"); } }
-  else if(act==="lockparent"){ S.parentOk=false; pref.del("ll-parent-device"); go(learner()?"home":"pick"); }
+  else if(act==="lockparent"){ S.parentOk=false; pref.del("ll-parent-device"); go(S.family&&S.family.teacher ? "teacher" : learner()?"home":"pick"); }
   else if(act==="askleave"){ S.confirmLeave=true; render(); }
   else if(act==="cancelleave"){ S.confirmLeave=false; render(); }
   else if(act==="leave"){

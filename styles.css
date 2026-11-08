@@ -345,3 +345,12 @@ i.h1{background:var(--h1)!important} i.h2{background:var(--h2)!important} i.h3{b
 .wdots i{width:12px;height:12px;border-radius:3px}
 .effline{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
 .effline.bad{color:var(--bad)} .effline.warn{color:var(--warn)} .effline.good{color:var(--good)}
+/* teacher dashboard */
+.famcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:0 0 12px}
+.famcard h3{margin:0 0 8px;font-size:17px}
+.kidrow{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:10px 0;color:var(--ink);cursor:pointer}
+.kidrow:first-of-type{border-top:0}
+.kidrow:hover b{text-decoration:underline}
+.kidnums{display:grid;justify-items:end;gap:2px;font-size:14px;flex:none}
+.form select,.form textarea,.form input{width:100%;max-width:100%;box-sizing:border-box;min-width:0}
+.form,.form label{min-width:0}

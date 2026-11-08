@@ -12,8 +12,8 @@ function syncLinks(){
   Object.keys(T.fams).forEach(c=>{ if(!want.has(c)){ T.fams[c].unsubs.forEach(u=>u()); delete T.fams[c]; } });
   want.forEach(c=>{
     if(T.fams[c] || c===S.code) return;
-    const f = T.fams[c] = {learners:[], lessons:[], unsubs:[]};
-    ["learners","lessons"].forEach(kind=>{
+    const f = T.fams[c] = {learners:[], lessons:[], attempts:[], reads:[], unsubs:[]};
+    ["learners","lessons","attempts","reads"].forEach(kind=>{
       f.unsubs.push(famDoc(c).collection(kind).onSnapshot(snap=>{ f[kind] = snap.docs.map(d=>({id:d.id, ...d.data()})); if(["teacher","tmark"].includes(S.view)) softRender(); }, ()=>{}));
     });
   });
@@ -145,14 +145,54 @@ document.addEventListener("change", async e=>{
   T.busy = false; render();
 });
 
+/* ---------- teacher workspace (a device that only teaches) ---------- */
+function vTeacherAuth(){
+  const open = S.tauth==="open";
+  return `<div class="auth">
+  <section class="hello"><span class="eyebrow">Teacher</span><h1>${open?"Open your teacher workspace":"Create a teacher workspace"}</h1>
+  <p class="muted">${open?"Type your teacher code and PIN.":"For a teacher who gives lessons to children in different families. Parents give you their family code so you can see their child's progress, give work and mark it."}</p></section>
+  <div class="tabs"><button data-act="authtab" data-tab="join" aria-pressed="false">Join with family code</button><button data-act="authtab" data-tab="new" aria-pressed="false">New family</button><button data-act="authtab" data-tab="teacher" aria-pressed="true">Teacher</button></div>
+  <div class="tabs" style="margin-top:8px"><button data-act="t-authmode" data-m="new" aria-pressed="${!open}">New workspace</button><button data-act="t-authmode" data-m="open" aria-pressed="${open}">I already have one</button></div>
+  <form class="form" id="tauthForm" novalidate>
+    ${open?`<label for="ta-code">Teacher code<input id="ta-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" maxlength="16" required></label>`:""}
+    <label for="ta-pin">${open?"Teacher PIN":"Choose a teacher PIN (4 digits)"}<input id="ta-pin" inputmode="numeric" maxlength="4" autocomplete="off" required></label>
+    <p class="err" id="ta-err" role="alert"></p>
+    <div><button class="btn" type="submit">${open?"Open workspace":"Create workspace"}</button></div>
+  </form></div>`;
+}
+/* run fn with a linked family's data in place of the current family's */
+function withFam(f, fn){ const keep = [S.attempts, S.reads, S.lessons]; S.attempts = f.attempts||[]; S.reads = f.reads||[]; S.lessons = f.lessons||[]; try{ return fn(); } finally{ [S.attempts, S.reads, S.lessons] = keep; } }
+function famProgress(){
+  const fams = [];
+  if(S.learners.length) fams.push({code:S.code, label:"Your family", f:{learners:S.learners, attempts:S.attempts, reads:S.reads, lessons:S.lessons}});
+  (S.links||[]).forEach(x=>{ if(T.fams[x.id]) fams.push({code:x.id, label:x.label||"Linked family", f:T.fams[x.id]}); });
+  if(!fams.length) return `<p class="muted">No families linked yet. Link a family below to see its children here.</p>`;
+  return fams.map(({code,label,f})=>`<div class="famcard"><h3>${esc(label)}</h3>
+    ${f.learners.length ? f.learners.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(k=>withFam(f, ()=>{
+      const v = effortVerdict(k.id), tests = S.attempts.filter(a=>a.learnerId===k.id && (kindOf(a)==="topic"||a.kind==="chapter"||a.kind==="mock") && a.at > Date.now()-28*86400000);
+      const avg = tests.length ? Math.round(tests.reduce((s,a)=>s+pctOf(a),0)/tests.length) : null;
+      const les = S.lessons.filter(x=>x.learnerId===k.id), waiting = les.filter(x=>x.status==="submitted").length, open = les.filter(x=>["assigned","started","redo"].includes(x.status)).length;
+      return `<button class="kidrow" data-act="t-view" data-c="${code}" data-id="${esc(k.id)}">
+        <span><b>${esc(k.name)}</b> <span class="muted">Grade ${gradeLabel(k.grade)}</span><br><span class="effline ${v.cls}">${weekDots(k.id)}<span>${v.head}: ${v.last14}/14 days</span></span></span>
+        <span class="kidnums"><span>${avg==null?"No tests":`Avg ${avg}%`}</span><span class="muted">${weakItems(k.id).length} weak</span>${waiting?`<span class="pill p-bad">${waiting} to mark</span>`:open?`<span class="pill p-warn">${open} lesson${open===1?"":"s"} open</span>`:""}</span></button>`; })).join("")
+      : `<p class="muted">No children added in this family yet.</p>`}</div>`).join("");
+}
+function teachView(code, lid){
+  S.tview = {home:S.code};
+  openFamily(code); S.parentOk = true; S.pkid = lid; S.view = "pchild"; render(); window.scrollTo(0,0);
+}
+
 /* ---------- teacher side ---------- */
 function vTeacher(){
   const studs = allStudents(), lessons = allLessons(), toMark = lessons.filter(o=>o.x.status==="submitted");
   const opts = studs.map((s,i)=>`<option value="${i}">${esc(s.l.name)} (Grade ${gradeLabel(s.l.grade)}) · ${esc(s.fam)}</option>`).join("");
   const sel = studs[+(S.tstud||0)];
   const lopts = Object.entries(LESSONS).filter(([k,L])=>!sel || +sel.l.grade===L.grade).map(([k,L])=>`<option value="${k}">${esc(L.title)}</option>`).join("");
-  return `${crumbs([{act:"parent",label:"Parent"},{label:"Teacher"}])}
+  return `${S.family&&S.family.teacher?"":crumbs([{act:"parent",label:"Parent"},{label:"Teacher"}])}
   <h1 class="pagetitle">Teacher</h1>
+  <h2 class="h2s">Progress by family</h2>
+  <p class="muted" style="margin:0 0 10px">Tap a child to see their full progress report: practice calendar, subjects, tests, weak spots and lessons.</p>
+  ${famProgress()}
   <h2 class="h2s">Work to mark ${toMark.length?`<span class="pill p-bad">${toMark.length}</span>`:""}</h2>
   ${toMark.length?`<div class="topiclist">${toMark.map(o=>`<button class="tcard" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}"><b>${esc(o.l.name)}</b><span class="muted">${esc(LESSONS[o.x.lessonKey].title)}</span><span class="muted">Submitted ${fmtDate(o.x.submittedAt)} · ${(o.x.pages||[]).length} pages${minsTaken(o.x)!=null?` · ${minsTaken(o.x)} min`:""}</span></button>`).join("")}</div>`:`<p class="muted">Nothing to mark right now.</p>`}
   <h2 class="h2s">Give a lesson</h2>
@@ -177,7 +217,7 @@ function vTMark(){
   const ex = x.ex || {}, exN = Object.keys(ex).length, exR = Object.values(ex).filter(Boolean).length;
   const CHIPS = ["Excellent work!","Good work!","Well tried!","Show all your method.","Work must be neat.","Use a ruler for graphs and tables.","Check your calculations.","Label your graph and give it a title.","Do your corrections."];
   const over = minsTaken(x)!=null && minsTaken(x) > L.minutes;
-  return `${crumbs([{act:"parent",label:"Parent"},{act:"teacher",label:"Teacher"},{label:st?st.l.name:"Lesson"}])}
+  return `${crumbs([...(S.family&&S.family.teacher?[]:[{act:"parent",label:"Parent"}]),{act:"teacher",label:"Teacher"},{label:st?st.l.name:"Lesson"}])}
   <h1 class="pagetitle">${esc(st?st.l.name:"")} · ${esc(L.title.split(":")[0])}</h1>
   <div class="strip">
     <div class="stat"><div class="eyebrow">Practice</div><div class="v">${exR}/5</div><div class="muted" style="font-size:13px">right first time (${exN}/5 done)</div></div>
@@ -213,8 +253,11 @@ function vPLessons(k){
 
 /* ---------- events ---------- */
 document.addEventListener("click", e=>{
-  const b = e.target.closest("[data-act^='l-'],[data-act^='t-'],[data-act^='p-pages']"); if(!b) return;
+  const b = e.target.closest("[data-act^='l-'],[data-act^='t-'],[data-act^='p-pages'],[data-act='teachback']"); if(!b) return;
   const act = b.dataset.act;
+  if(act==="teachback"){ const home = S.tview && S.tview.home; S.tview = null; if(home){ openFamily(home); S.parentOk = true; } go("teacher"); return; }
+  if(act==="t-view"){ teachView(b.dataset.c, b.dataset.id); return; }
+  if(act==="t-authmode"){ S.tauth = b.dataset.m; render(); return; }
   if(act==="l-open"){ S.lessonId = b.dataset.id; S.ltab = "notes"; S.lnpage = 0; S.ltried = {}; go("lesson"); }
   else if(act==="l-tab"){ S.ltab = b.dataset.t; render(); window.scrollTo(0,0); }
   else if(act==="l-npage"){ S.lnpage = +b.dataset.p; render(); document.querySelector(".notes")?.scrollIntoView({block:"start"}); }
@@ -238,6 +281,27 @@ document.addEventListener("click", e=>{
 });
 document.addEventListener("change", e=>{ if(e.target.id==="t-stud"){ S.tstud = +e.target.value; render(); } });
 document.addEventListener("submit", async e=>{
+  if(e.target.id==="tauthForm"){
+    e.preventDefault();
+    const err = document.getElementById("ta-err"), pin = document.getElementById("ta-pin").value.trim();
+    if(!S.user){ err.textContent = "Still connecting. Check your internet connection and try again."; return; }
+    if(!/^\d{4}$/.test(pin)){ err.textContent = "The PIN must be 4 digits."; return; }
+    try{
+      if(S.tauth==="open"){
+        const code = cleanCode(document.getElementById("ta-code").value);
+        if(code.length!==12){ err.textContent = "The teacher code has 12 letters and numbers."; return; }
+        const d = await famDoc(code).get();
+        if(!d.exists || !d.data().teacher){ err.textContent = "No teacher workspace found with that code."; return; }
+        if(await sha(code+":"+pin) !== d.data().pinHash){ err.textContent = "That PIN isn't right."; return; }
+        pref.set("ll-family", code); pref.set("ll-parent-device", code); S.view = "teacher"; openFamily(code); S.parentOk = true;
+      } else {
+        const code = newCode();
+        await famDoc(code).set({pinHash: await sha(code+":"+pin), teacher:true, createdAt:Date.now()});
+        S.newCode = code; S.newTeacher = true; S.parentOk = true; render();
+      }
+    }catch(x){ err.textContent = "That didn't work. Check your connection and try again."; }
+    return;
+  }
   if(e.target.id==="assignForm"){
     e.preventDefault();
     const s = allStudents()[+document.getElementById("t-stud").value], key = document.getElementById("t-lesson").value;
