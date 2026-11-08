@@ -142,14 +142,43 @@ LESSONS["g7-his-frontiers"] = {
 <tr><td>Moffat calling the Griqua to help the Batlhaping at Dithakong</td><td>Graham forcing the Xhosa beyond the Fish River (1811)</td></tr>
 <tr><td>Moffat's friendship with Mzilikazi</td><td>Maqoma's guerrilla war (1850–1853)</td></tr></table></div>
 
-<h2>10. How to answer History questions</h2>
-<ul><li><b>Name / list / identify</b>: short answers, one fact per mark.</li>
-<li><b>Explain / why</b>: give the reason and the result. Use the word "because".</li>
-<li><b>Describe</b>: say what happened, with details (who, what, where, when).</li>
-<li><b>Paragraph questions</b>: write in full sentences, in your own words, with an introduction sentence, facts with dates and names, and a concluding sentence. No bullet points.</li>
-<li>One fact = one mark. A question worth (3) needs three facts.</li>
-<li>Write neatly and spell names correctly: Maqoma, Ngqika, Batlhaping, Kuruman, Setswana, Mzilikazi.</li></ul>`,
-  examples:`<div class="ex"><b>Model answer 1: a definition (2 marks)</b>
+<h2>10. How to write good sentences in History</h2>
+<p>In History, <b>how you write is part of your mark</b>. A correct fact written as one word, or in a broken sentence, can lose marks. Learn these rules.</p>
+<h3>Rule 1: Every sentence is complete</h3>
+<ul><li>Start with a <b>capital letter</b>. End with a <b>full stop</b>.</li>
+<li>Every sentence needs <b>who or what</b> it is about, and a <b>doing word</b> (verb): "<u>Maqoma</u> <u>fought</u> the British."</li>
+<li>Write names of people, places and groups with capital letters: Maqoma, Kuruman, the Xhosa, the British, Setswana.</li></ul>
+<h3>Rule 2: Turn the question into the start of your answer</h3>
+<div class="ex"><b>Example</b>Question: Why did the British want the Cape?<br>
+❌ Weak: "Trade route."<br>
+✅ Strong: "<b>The British wanted the Cape because</b> it was an important point of rest on the trade route from Europe to the East."</div>
+<h3>Rule 3: Explain with linking words</h3>
+<p>When a question says <b>explain, why or how</b>, give the fact <b>and</b> the reason. Use linking words:</p>
+<div class="tbl"><table><tr><th>To give a reason</th><th>To show a result</th><th>To add a point</th><th>To show a contrast</th></tr>
+<tr><td>because, since</td><td>so, as a result, this led to, therefore</td><td>also, in addition, firstly, secondly, finally</td><td>however, but, although</td></tr></table></div>
+<div class="ex"><b>Example</b>Question: Explain why cattle were important to the Xhosa.<br>
+❌ Weak: "Milk and meat. Wealth."<br>
+✅ Strong: "Cattle were important to the Xhosa <b>because</b> they gave the people milk and meat. <b>Also</b>, a person's wealth was measured by the number of cattle he had."</div>
+<h3>Rule 4: Definitions start with the word itself</h3>
+<div class="ex"><b>Example</b>❌ Weak: "Is when you attack by surprise."<br>
+✅ Strong: "<b>Guerrilla warfare is</b> a way of fighting where a smaller group uses sudden surprise attacks against a bigger army. <b>For example,</b> Maqoma used guerrilla warfare in the forests along the Fish River."</div>
+<h3>Rule 5: One idea per sentence</h3>
+<p>Don't join everything with "and ... and ... and". Put a full stop after each idea and start the next sentence with a linking word.</p>
+<div class="ex"><b>Example</b>❌ Weak: "There was cattle theft and they argued about boundaries and they needed land and there were wars."<br>
+✅ Strong: "Firstly, cattle theft caused conflict. Secondly, the groups argued about where the boundaries were. Finally, the settlers needed more land for farming. As a result, nine Frontier Wars were fought."</div>
+<h3>Rule 6: How to write a paragraph</h3>
+<ol><li><b>Topic sentence</b>: say what the paragraph is about. "Chief Maqoma was a brave Xhosa leader who fought against the British."</li>
+<li><b>Supporting sentences (3 to 5)</b>: one fact each, with names, dates and places.</li>
+<li><b>Concluding sentence</b>: sum up or say why it matters. "Today he is remembered as a hero of African resistance."</li></ol>
+<p>A paragraph is written in <b>your own words</b>, with <b>no bullet points</b>.</p>
+<h3>Check every answer before you move on</h3>
+<ul><li>Did I start with a capital letter and end with a full stop?</li>
+<li>Did I use the words of the question?</li>
+<li>Did I explain, using "because" or "so"?</li>
+<li>Did I give enough facts for the marks? (2) needs two facts.</li>
+<li>Did I spell the names correctly?</li></ul>`,
+  examples:`<p class="muted">In every model answer below, notice that the answer is written in full sentences, uses the words of the question, and explains with "because" or "so". That is how you get full marks.</p>
+<div class="ex"><b>Model answer 1: a definition (2 marks)</b>
 <i>Question: What is a frontier? Give an example.</i><br>
 A frontier is a border between territories that can move, where different groups meet and compete for land and resources ✔. For example, the eastern frontier of the Cape Colony, where the Xhosa and European settlers competed for land ✔.</div>
 
@@ -157,9 +186,10 @@ A frontier is a border between territories that can move, where different groups
 <i>Question: Why did the British want control of the Cape?</i><br>
 The Cape was an important point of rest on the trade route from Europe to the East ✔, and Britain was competing with France for trade routes and colonies, so it wanted to control the route ✔.</div>
 
-<div class="ex"><b>Model answer 3: causes (3 marks)</b>
-<i>Question: Give three causes of conflict on the eastern frontier.</i><br>
-1. Cattle theft ✔<br>2. Arguments about boundaries ✔<br>3. The need for more land for farming and cattle ✔</div>
+<div class="ex"><b>Model answer 3: explaining causes (3 marks)</b>
+<i>Question: Explain what caused conflict on the eastern frontier.</i><br>
+Firstly, cattle theft caused conflict because each side accused the other of stealing cattle ✔. Secondly, the groups argued about boundaries, because they did not agree where the border was ✔. Finally, the settlers needed more land for farming and cattle, so there was less land for the Xhosa ✔.<br>
+<span class="muted">Not: "Cattle theft, boundaries, land." That is a list, not an explanation.</span></div>
 
 <div class="ex"><b>Model answer 4: effects (4 marks)</b>
 <i>Question: What were the effects of the Frontier Wars?</i><br>
@@ -170,10 +200,10 @@ The wars caused many deaths ✔, the destruction of farms ✔, the loss of cattl
 <i>Question: Explain why Maqoma could defeat much larger British armies.</i><br>
 He used guerrilla warfare: his fighters made sudden surprise attacks ✔ from the forests and valleys along the Fish River, which they knew well and where the British could not fight in the open ✔.</div>
 
-<div class="ex"><b>Model answer 6: true or false with correction (2 marks)</b>
-<i>Statement: Robert Moffat translated the Bible into isiXhosa.</i><br>
-False ✔. He translated the Bible into <b>Setswana</b> ✔.<br>
-<span class="muted">Tip: when a statement is false, you must give the correct fact to get the second mark.</span></div>
+<div class="ex"><b>Model answer 6: agree or disagree, and explain (2 marks)</b>
+<i>Statement: "The Frontier Wars only affected the Xhosa." Do you agree? Explain.</i><br>
+I disagree with this statement ✔. The Frontier Wars changed the lives of both the Xhosa and the European settlers, because both sides lost people, cattle and farms ✔.<br>
+<span class="muted">Tip: first say clearly whether you agree or disagree, then give your reason with "because".</span></div>
 
 <div class="ex"><b>Model answer 7: a "why" question about missionaries (2 marks)</b>
 <i>Question: Why did many farmers see missionaries as enemies?</i><br>
@@ -186,44 +216,39 @@ The Battle of Dithakong took place in 1823 ✔. A large group of displaced Tswan
 {q:"In which year did the British seize the Cape from the Dutch?",o:["1820","1806","1811","1795"],a:1,h:"It happened before Graham's campaign (1811) and before the British settlers arrived.",e:"The British seized the Cape from the Dutch in 1806."},
 {q:"What does the word 'guerrilla' describe?",o:["A large army fighting in open battle","A peace treaty between two groups","A smaller group using sudden surprise attacks against a bigger army","A fort built along a river"],a:2,h:"Think of how Maqoma fought in the forests and valleys.",e:"Guerrilla warfare is when a smaller, weaker group uses sudden surprise attacks to take on a much larger, stronger army."},
 {q:"How many Frontier Wars were fought between 1779 and 1879?",o:["Three","Five","Seven","Nine"],a:3,h:"Look at section 3 of the notes: the wars lasted about 100 years. How many were there?",e:"Nine Frontier Wars were fought between 1779 and 1879."},
-{q:"Why did Kuruman become an important stop for traders, explorers and hunters?",o:["It had a steady supply of fresh water and food crops","It was the capital of the Cape Colony","It was on the coast, so ships could stop there","It had gold mines"],a:0,h:"What do travellers going deep into the interior need?",e:"Kuruman had fresh water and food crops, so it became a refuelling station for people travelling into the interior."},
-{q:"Which leader brought armed Griqua horsemen to help the Batlhaping at the Battle of Dithakong?",o:["Mzilikazi","Adam Kok","Hintsa","John Graham"],a:1,h:"He was a Griqua leader.",e:"Adam Kok and other Griqua leaders brought over 100 men with guns and on horseback."}],
-  testIntro:`<p><b>Instructions</b></p><ul><li>Write all your answers on paper. Write your name, the date and "History test: frontiers of the Cape Colony" at the top.</li><li>Number your answers exactly as the questions are numbered.</li><li>The marks for each question are shown in brackets, for example (2). Give one fact for every mark.</li><li>Answer in full sentences where you are asked to explain, describe or write a paragraph. Spell names correctly.</li><li><b>Your work must be neat</b>: write clearly and cross out mistakes with one neat line.</li><li>You have <b>40 minutes</b>. The test is out of 30 marks.</li><li>When you finish, take a clear photo of every page and upload them below, then press Submit.</li></ul>`,
+{q:"Which is the BEST answer to: 'Why did Kuruman become an important stop for travellers?'",o:["Water and food.","Because water.","Kuruman became an important stop because it had a steady supply of fresh water and food crops for traders, explorers and hunters.","It is in the Northern Cape and Moffat and the Tswana and water."],a:2,h:"Look for a full sentence that uses the words of the question and explains with 'because'.",e:"The best answer is a complete sentence that starts with the words of the question and explains the reason."},
+{q:"Which sentence is written correctly?",o:["maqoma fought the british in the forests.","Maqoma fought the British in the forests along the Fish River.","Maqoma fought. The British. In the forests.","Fought the British in the forests along the Fish River"],a:1,h:"Check for capital letters on names, a doing word, and a full stop.",e:"It starts with a capital letter, has who (Maqoma) and a doing word (fought), capital letters on names, and ends with a full stop."}],
+  testIntro:`<p><b>Instructions</b></p><ul><li>Write all your answers on paper. Write your name, the date and "History test: frontiers of the Cape Colony" at the top.</li><li>Number your answers exactly as the questions are numbered.</li><li><b>Answer every question in full sentences.</b> One-word answers and lists will not get full marks. Use the words of the question to start your answer, and explain with "because" or "so".</li><li>The marks are shown in brackets, for example (2). Give one explained fact for every mark.</li><li>Spell names correctly. <b>Your work must be neat</b>: write clearly and cross out mistakes with one neat line.</li><li>You have <b>40 minutes</b>. The test is out of 30 marks. If you need a short break, press Pause: the questions will be hidden and the clock will stop.</li><li>When you finish, take a clear photo of every page and upload them below, then press Submit.</li></ul>`,
   test:[
-`<h3>Section A: Key words (5 marks)</h3><p>Write down the correct word for each description. Choose from: <b>frontier, boundary, guerrilla, chiefdom, missionary, colony</b>.</p>`,
-"A person who travels to another area or country to spread their religion. (1)",
-"A border between territories which can be moved. (1)",
-"A community or area ruled by a chief, who leads the people and makes decisions for the group. (1)",
-"A style of fighting where a smaller, weaker group uses sudden surprise attacks against a much larger army. (1)",
-"A line or limit that separates two areas of land. (1)",
-`<h3>Section B: True or false (6 marks)</h3><p>Write <b>true</b> or <b>false</b>. If the statement is false, write the correct fact. (2 marks each: 1 for true or false, 1 for the correction or for repeating the correct fact)</p>`,
-"The British settlers arrived at the Cape by ship in 1820. (2)",
-"Colonel John Graham forced the Xhosa beyond the Orange River in 1811. (2)",
-"Chief Maqoma died as a prisoner on Robben Island in 1873. (2)",
-`<h3>Section C: The eastern frontier (9 marks)</h3>`,
-"Give TWO reasons why the British wanted control of the Cape. (2)",
-"Why were cattle so important to the Xhosa? Give TWO reasons. (2)",
-"Name THREE things that caused conflict between the trekboers, the British and the Xhosa. (3)",
-"Name the town that was established in 1812 as the British headquarters on the frontier, and say who it was named after. (2)",
-`<h3>Section D: The northern frontier (6 marks)</h3>`,
-"Name TWO Tswana chiefdoms. (2)",
-"What did the Tswana trade with the European traders and the Griqua, and what did they get in return? (2)",
-"Give TWO things that missionaries did to change the lives of people at mission stations. (2)",
-`<h3>Section E: Paragraph (4 marks)</h3>`,
-"Write a paragraph of 5 to 7 sentences about Chief Maqoma. Say who he was, why and how he fought against the British, and how he is remembered today. (4)"
+`<h3>Section A: Explain the key words (6 marks)</h3><p>For each word, write one full sentence that explains what it means, and one full sentence that gives an example from this section of History. (2 marks each)</p>`,
+"Frontier (2)",
+"Guerrilla warfare (2)",
+"Missionary (2)",
+`<h3>Section B: Agree or disagree (6 marks)</h3><p>Say whether you <b>agree</b> or <b>disagree</b> with each statement. Then explain your answer in at least two full sentences. (2 marks each)</p>`,
+"\"The British wanted the Cape only because it had good farming land.\" (2)",
+"\"The Frontier Wars only changed the lives of the Xhosa.\" (2)",
+"\"Robert Moffat's work at Kuruman helped the Batlhaping.\" (2)",
+`<h3>Section C: Explain (9 marks)</h3><p>Answer in full sentences. Use "because" or "so" to explain.</p>`,
+"Explain why cattle were so important to the Xhosa. (2)",
+"Explain how the need for more land led to conflict on the eastern frontier. (3)",
+"Explain why Kuruman became an important stop for traders, explorers and hunters. (2)",
+"Explain why many farmers saw the missionaries as enemies. (2)",
+`<h3>Section D: Paragraphs (9 marks)</h3><p>Write in your own words, in paragraph form, with no bullet points. Begin with a topic sentence and end with a concluding sentence.</p>`,
+"Write a paragraph of at least 5 sentences about Chief Maqoma. Say who he was, why and how he fought against the British, what happened to him, and how he is remembered today. (5)",
+"Write a paragraph of at least 4 sentences about the Battle of Dithakong. Say when it happened, who was involved, what Robert Moffat did, and what the result was. (4)"
   ],
   memo:[
-"Missionary","Frontier","Chiefdom","Guerrilla","Boundary",
-"True ✔ (1820 British settlers arrived by ship and settled on the eastern frontier ✔)",
-"False ✔. He forced the Xhosa beyond the (Great) Fish River ✔",
-"True ✔ (Maqoma died a prisoner on Robben Island in 1873 ✔)",
-"Any two: the Cape was an important point of rest on the trade route from Europe to the East ✔; Britain was competing with France for trade routes and colonies ✔; to control the sea route",
-"Any two: cattle gave milk ✔ and meat ✔; cattle were their most precious possession; wealth was measured by the number of cattle a person had",
-"Cattle theft ✔; arguments about boundaries ✔; the need for more land (for farming and keeping cattle) ✔",
-"Grahamstown ✔, named after Colonel John Graham ✔",
-"Any two: Batlhaping ✔, Barolong ✔, Batlhare",
-"They traded ivory, cattle skins and feathers ✔ for guns and shop-bought goods ✔",
-"Any two: offered plots of land to grow food; set up schools / taught reading and writing; taught Christianity; introduced western medicine; introduced new farming techniques; wrote down African languages; acted as translators and scribes",
-"Any four facts, in full sentences: a brave Xhosa leader (son of Ngqika); fought to protect his people's land from British colonial rulers; his people were expelled from the Kat River valley (1829); led resistance in the war of 1850–1853; used guerrilla warfare in the forests and valleys along the Fish River; defeated much larger British armies; died a prisoner on Robben Island in 1873; remembered as a hero of African resistance against early colonialism. Deduct for bullet points or copied notes."
+"1 mark: a full sentence meaning, e.g. A frontier is a border between territories that can move, where groups meet and compete for land. 1 mark: a full sentence example, e.g. The eastern frontier of the Cape Colony was where the Xhosa and European settlers competed for land.",
+"1 mark: Guerrilla warfare is when a smaller, weaker group uses sudden surprise attacks against a bigger, stronger army. 1 mark: e.g. Maqoma used guerrilla warfare in the forests and valleys along the Fish River.",
+"1 mark: A missionary is a person who travels to another area or country to spread their religion. 1 mark: e.g. Robert Moffat was a missionary who started a mission station at Kuruman.",
+"Disagree (no mark on its own). 2 marks for the explanation: the Cape was an important point of rest on the trade route from Europe to the East ✔; Britain competed with France for trade routes and colonies / wanted to control the sea route ✔.",
+"Disagree. 2 marks: the wars changed the lives of both the Xhosa and the European settlers ✔; both sides suffered deaths, destroyed farms, loss of cattle or were forced to move ✔.",
+"Agree. 2 marks for any two explained points: he taught them to farm and grow their own food; started a school / church; translated the Bible into Setswana; called the Griqua to help them win the Battle of Dithakong; Kuruman became a trading/refuelling station.",
+"Cattle gave the Xhosa milk and meat ✔; wealth was measured by the number of cattle a person had / cattle were their most precious possession ✔.",
+"Settlement expanded, so settlers needed more land for farming and cattle ✔; this brought them into closer contact with the Xhosa, who had lived on the land for hundreds of years / also needed the land for their cattle ✔; this led to disputes over boundaries, cattle theft and the Frontier Wars ✔.",
+"Kuruman had a steady supply of fresh water ✔ and food crops ✔, so travellers going deep into the interior could stop and refuel / get supplies there.",
+"Missionaries believed the law should be equal for everyone ✔; many people went to live at mission stations instead of working on farms, so farmers lost workers ✔.",
+"Any 4 facts (4 marks) + 1 mark for structure (topic sentence, full sentences, concluding sentence, own words). Facts: brave Xhosa leader / son of Ngqika; fought to protect his people's land from British colonial rulers; his people were expelled from the Kat River valley (1829); led resistance in the war of 1850–1853; guerrilla war in the forests and valleys along the Fish River; defeated much larger British armies; died a prisoner on Robben Island in 1873; remembered as a hero of African resistance against early colonialism.",
+"4 marks, one per fact, only for facts in full sentences: 1823 ✔; displaced Tswana people threatened to attack the Batlhaping ✔; Moffat called on armed Griqua horsemen / Adam Kok brought over 100 men with guns and horses ✔; the Batlhaping won, which would not have been possible without Moffat and the Griqua ✔. WHOLE TEST: give a mark only when the fact is written in a sentence. Deduct where answers are single words or lists. In feedback, comment on sentence construction: capital letters, full stops, using the words of the question, and 'because'."
   ]
 };

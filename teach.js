@@ -30,7 +30,11 @@ function saveLesson(code, x){ const {id, ...data} = x; famDoc(code).collection("
 /* ----- status ----- */
 const LSTATUS = {assigned:["New","p-warn"], started:["In progress","p-warn"], submitted:["Waiting for marking","p-none"], marked:["Marked","p-good"], redo:["Redo requested","p-bad"]};
 const lstatus = x => LSTATUS[x.status] || LSTATUS.assigned;
-const minsTaken = x => x.testStartedAt && x.submittedAt ? Math.round((x.submittedAt - x.testStartedAt)/60000) : null;
+/* test time excludes pauses (toilet breaks); pauses are counted so the teacher and parent can see them */
+const pausedNow = x => x.pausedAt ? Date.now() - x.pausedAt : 0;
+const usedMs = x => (x.submittedAt || Date.now()) - x.testStartedAt - (x.pausedMs||0) - pausedNow(x);
+const minsTaken = x => x.testStartedAt && x.submittedAt ? Math.round(usedMs(x)/60000) : null;
+const pauseNote = x => x.pauses ? `paused ${x.pauses} time${x.pauses===1?"":"s"} (${Math.round((x.pausedMs||0)/60000)} min)` : "";
 function praiseFor(pct){ return pct>=80 ? "Excellent work!" : pct>=60 ? "Good work!" : pct>=40 ? "Well tried, keep practising!" : "Good effort. Go over the notes and try again."; }
 
 /* ---------- learner side ---------- */
@@ -72,7 +76,7 @@ function lessonPractice(x, L){
     </div>`;}).join("")}
   ${Object.keys(ex).length===5 ? `<div class="banner">${(()=>{const n=Object.values(ex).filter(Boolean).length; return `${n} of 5 right first time. ${praiseFor(n*20)}`})()} Now you're ready for the test.</div><div class="cta"><button class="btn" data-act="l-tab" data-t="test">Go to the test →</button></div>` : ""}`;
 }
-function timeLeft(x, L){ return Math.max(0, Math.round(L.minutes*60 - (Date.now() - x.testStartedAt)/1000)); }
+function timeLeft(x, L){ return Math.max(0, Math.round(L.minutes*60 - usedMs(x)/1000)); }
 function lessonTest(x, L){
   const items = lessonTestItems(L), pages = x.pages || [];
   if(x.status==="marked"){
@@ -86,8 +90,11 @@ function lessonTest(x, L){
     <div class="cta"><button class="btn" data-act="l-start">Start the ${L.minutes}-minute test</button></div>
     <p class="muted">The timer starts when you press the button. Have paper, a pen, a pencil, a ruler and a protractor ready.</p>`;
   const left = x.status==="redo" ? null : timeLeft(x, L);
+  if(x.pausedAt && x.status!=="redo") return `<div class="timer paused" aria-live="polite"><span>⏸</span><b>Paused</b><span class="muted">for <span id="lpause">${mm(Math.round(pausedNow(x)/1000))}</span></span></div>
+    <div class="banner"><b>Your test is paused.</b> The questions are hidden and the clock has stopped. You still have <b>${mm(left)}</b> left. Your teacher can see how many times and how long you paused.</div>
+    <div class="cta"><button class="btn" data-act="l-resume">▶ Carry on with the test</button></div>`;
   return `${x.status==="redo"?`<div class="banner"><b>Your teacher asked you to redo this.</b> ${esc(x.feedback||"")} Fix your work, take new photos and submit again.</div>`
-    : `<div class="timer ${left===0?"over":""}" aria-live="polite"><span>⏱</span><b id="ltimer">${left===0?"Time is up":mm(left)}</b><span class="muted">${left===0?"Put your pen down and upload your pages.":"left"}</span></div>`}
+    : `<div class="timer ${left===0?"over":""}" aria-live="polite"><span>⏱</span><b id="ltimer">${left===0?"Time is up":mm(left)}</b><span class="muted">${left===0?"Put your pen down and upload your pages.":"left"}</span>${left>0?`<button class="btn ghost small" data-act="l-pause">⏸ Pause</button>`:""}</div>${x.pauses?`<p class="muted" style="font-size:14px;margin:-4px 0 10px">You have ${pauseNote(x)}.</p>`:""}`}
   <article class="notes ltest">${L.testIntro}${items.map(it=>it.head ? it.head : `<p class="tq"><b>${it.n}.</b> ${it.q}</p>`).join("")}</article>
   <h2 class="h2s">Upload your written work</h2>
   <p class="muted">Take a clear, well-lit photo of each page, in order. Make sure the whole page is in the photo and the writing is sharp.</p>
@@ -222,7 +229,7 @@ function vTMark(){
   <h1 class="pagetitle">${esc(st?st.l.name:"")} · ${esc(L.title.split(":")[0])}</h1>
   <div class="strip">
     <div class="stat"><div class="eyebrow">Practice</div><div class="v">${exR}/5</div><div class="muted" style="font-size:13px">right first time (${exN}/5 done)</div></div>
-    <div class="stat"><div class="eyebrow">Test time</div><div class="v">${minsTaken(x)!=null?minsTaken(x)+" min":"–"}</div><div class="muted" style="font-size:13px">${over?`<span class="warnword">over the ${L.minutes} min</span>`:`limit ${L.minutes} min`}</div></div>
+    <div class="stat"><div class="eyebrow">Test time</div><div class="v">${minsTaken(x)!=null?minsTaken(x)+" min":"–"}</div><div class="muted" style="font-size:13px">${over?`<span class="warnword">over the ${L.minutes} min</span>`:`limit ${L.minutes} min`}${x.pauses?`<br>${pauseNote(x)}`:""}</div></div>
     <div class="stat"><div class="eyebrow">Pages</div><div class="v">${(x.pages||[]).length}</div></div>
   </div>
   <h2 class="h2s">His written work</h2>
@@ -299,7 +306,7 @@ function vPLessons(k){
   return `<h2 class="h2s">Lessons from the teacher</h2><div class="topiclist">${mine.map(x=>{ const L = lessonOf(x), [st,cls] = lstatus(x), ex = x.ex||{};
     const open = S.plopen===x.id;
     return `<div class="tcard static"><span class="meta"><b>${esc(L.title)}</b><span class="pill ${cls}">${st}</span></span>
-      <span class="muted" style="font-size:14px">Given ${fmtDate(x.assignedAt)} · practice ${Object.values(ex).filter(Boolean).length}/5 right first time${minsTaken(x)!=null?` · test took ${minsTaken(x)} min`:""}${x.status==="marked"?` · <b>Mark ${x.mark}/${L.outOf} (${Math.round(x.mark/L.outOf*100)}%)</b>`:""}</span>
+      <span class="muted" style="font-size:14px">Given ${fmtDate(x.assignedAt)} · practice ${Object.values(ex).filter(Boolean).length}/5 right first time${minsTaken(x)!=null?` · test took ${minsTaken(x)} min${x.pauses?`, ${pauseNote(x)}`:""}`:""}${x.status==="marked"?` · <b>Mark ${x.mark}/${L.outOf} (${Math.round(x.mark/L.outOf*100)}%)</b>`:""}</span>
       ${x.status==="marked"||x.status==="redo" ? markSummary(x) : ""}
       ${(x.pages||[]).length ? (open ? pageStrip(x) : `<button class="linkbtn" data-act="p-pages" data-id="${esc(x.id)}">See his written work (${x.pages.length} pages)</button>`) : ""}
     </div>`;}).join("")}</div>`;
@@ -324,6 +331,8 @@ document.addEventListener("click", e=>{
   }
   else if(act==="l-start"){ const x = curLesson(); x.testStartedAt = Date.now(); x.status = "started"; saveLesson(S.code, x); render(); window.scrollTo(0,0); }
   else if(act==="l-rmpage"){ const x = curLesson(), p = b.dataset.p; x.pages = (x.pages||[]).filter(i=>i!==p); saveLesson(S.code, x); famRef.collection("pages").doc(p).delete().catch(()=>{}); render(); }
+  else if(act==="l-pause"){ const x = curLesson(); if(x.pausedAt) return; x.pausedAt = Date.now(); x.pauses = (x.pauses||0)+1; saveLesson(S.code, x); render(); window.scrollTo(0,0); }
+  else if(act==="l-resume"){ const x = curLesson(); if(!x.pausedAt) return; x.pausedMs = (x.pausedMs||0) + (Date.now() - x.pausedAt); x.pausedAt = null; saveLesson(S.code, x); render(); window.scrollTo(0,0); }
   else if(act==="l-submit"){ const x = curLesson(); if(!(x.pages||[]).length) return; x.status = "submitted"; x.submittedAt = Date.now(); saveLesson(S.code, x); render(); window.scrollTo(0,0); }
   else if(act==="l-zoom"){ e.preventDefault(); const src = T.pages[b.dataset.p]; if(src){ S.zoom = src; render(); } }
   else if(act==="t-zoomclose"){ S.zoom = null; render(); }
@@ -406,6 +415,6 @@ document.addEventListener("submit", async e=>{
   }
 });
 /* live test timer */
-setInterval(()=>{ const el = document.getElementById("ltimer"); if(!el) return; const x = curLesson(); if(!x || !x.testStartedAt) return; const L = lessonOf(x), left = timeLeft(x, L);
+setInterval(()=>{ const pe = document.getElementById("lpause"); if(pe){ const x = curLesson(); if(x && x.pausedAt) pe.textContent = mm(Math.round(pausedNow(x)/1000)); } const el = document.getElementById("ltimer"); if(!el) return; const x = curLesson(); if(!x || !x.testStartedAt) return; const L = lessonOf(x), left = timeLeft(x, L);
   if(left===0 && el.textContent!=="Time is up"){ render(); try{ say("Time is up. Put your pen down and upload your pages."); }catch(e){} } else if(left>0) el.textContent = mm(left); }, 1000);
 function zoomLayer(){ return S.zoom ? `<div class="zoom" role="dialog" aria-label="Page photo"><button class="btn" data-act="t-zoomclose">Close</button><img src="${S.zoom}" alt="Page photo"></div>` : ""; }
