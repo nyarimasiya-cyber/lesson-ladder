@@ -37,14 +37,14 @@ function praiseFor(pct){ return pct>=80 ? "Excellent work!" : pct>=60 ? "Good wo
 function lessonCards(l){
   const mine = (S.lessons||[]).filter(x=>x.learnerId===l.id).sort((a,b)=>b.assignedAt-a.assignedAt);
   if(!mine.length) return "";
-  return `<h2 class="h2s">📘 From your teacher</h2><div class="topiclist" style="margin-bottom:20px">${mine.slice(0,4).map(x=>{ const L = LESSONS[x.lessonKey]; const [st,cls] = lstatus(x);
+  return `<h2 class="h2s">📘 From your teacher</h2><div class="topiclist" style="margin-bottom:20px">${mine.slice(0,4).map(x=>{ const L = lessonOf(x); const [st,cls] = lstatus(x);
     return `<button class="tcard" data-act="l-open" data-id="${esc(x.id)}"><span class="eyebrow">${esc(sname(L.subject, l.grade))} · teacher lesson</span><h3>${esc(L.title)}</h3>
       <span class="meta"><span class="muted">${x.status==="marked"?`Mark: ${x.mark}/${L.outOf}`:fmtDate(x.assignedAt)}</span><span class="pill ${cls}">${st}</span></span></button>`;}).join("")}</div>`;
 }
 function curLesson(){ return (S.lessons||[]).find(x=>x.id===S.lessonId); }
 function vLesson(){
   const x = curLesson(), l = learner(); if(!x || !l) return vHome();
-  const L = LESSONS[x.lessonKey], tab = S.ltab || "notes";
+  const L = lessonOf(x), tab = S.ltab || "notes";
   const tabs = [["notes","1","Notes"],["examples","2","Worked examples"],["practice","3","Practice"],["test","4","Test"]];
   return `<button class="crumb" data-act="home">← Back</button>
   <span class="eyebrow">${esc(sname(L.subject,l.grade))} · Lesson from your teacher</span>
@@ -194,14 +194,14 @@ function vTeacher(){
   <p class="muted" style="margin:0 0 10px">Tap a child to see their full progress report: practice calendar, subjects, tests, weak spots and lessons.</p>
   ${famProgress()}
   <h2 class="h2s">Work to mark ${toMark.length?`<span class="pill p-bad">${toMark.length}</span>`:""}</h2>
-  ${toMark.length?`<div class="topiclist">${toMark.map(o=>`<button class="tcard" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}"><b>${esc(o.l.name)}</b><span class="muted">${esc(LESSONS[o.x.lessonKey].title)}</span><span class="muted">Submitted ${fmtDate(o.x.submittedAt)} · ${(o.x.pages||[]).length} pages${minsTaken(o.x)!=null?` · ${minsTaken(o.x)} min`:""}</span></button>`).join("")}</div>`:`<p class="muted">Nothing to mark right now.</p>`}
+  ${toMark.length?`<div class="topiclist">${toMark.map(o=>`<button class="tcard" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}"><b>${esc(o.l.name)}</b><span class="muted">${esc(lessonOf(o.x).title)}</span><span class="muted">Submitted ${fmtDate(o.x.submittedAt)} · ${(o.x.pages||[]).length} pages${minsTaken(o.x)!=null?` · ${minsTaken(o.x)} min`:""}</span></button>`).join("")}</div>`:`<p class="muted">Nothing to mark right now.</p>`}
   <h2 class="h2s">Give a lesson</h2>
   ${studs.length?`<form class="form" id="assignForm">
     <label for="t-stud">Student<select id="t-stud">${opts}</select></label>
     <label for="t-lesson">Lesson<select id="t-lesson">${lopts||`<option value="">No lessons for this grade yet</option>`}</select></label>
     <label for="t-msg">Message to the student (optional)<textarea id="t-msg" rows="2" maxlength="300" placeholder="e.g. Do this before Friday. Remember: neat work and show your method."></textarea></label>
     <div><button class="btn" type="submit" ${lopts?"":"disabled"}>Give this lesson</button></div></form>`:`<p class="muted">Add a learner or link a family first.</p>`}
-  ${lessons.length?`<h2 class="h2s">All lessons</h2><div class="feed">${lessons.map(o=>{const [st,cls]=lstatus(o.x), L=LESSONS[o.x.lessonKey]; return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}).join("")}</div>`:""}
+  ${lessons.length?`<h2 class="h2s">All lessons</h2><div class="feed">${lessons.map(o=>{const [st,cls]=lstatus(o.x), L=lessonOf(o.x); return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}).join("")}</div>`:""}
   <h2 class="h2s">Students in other families</h2>
   <p class="muted" style="margin:0 0 10px">To teach a child from another family, ask their parent for their family code (Parent → Family code on their device). Their parent will see the lessons and marks in their own app.</p>
   ${(S.links||[]).length?`<div class="feed" style="margin-bottom:12px">${S.links.map(x=>`<div><span><b>${esc(x.label||"Linked family")}</b> · ${(T.fams[x.id]?.learners||[]).map(l=>esc(l.name)).join(", ")||"loading…"}</span><button class="linkbtn" data-act="t-unlink" data-c="${x.id}">Remove</button></div>`).join("")}</div>`:""}
@@ -212,7 +212,8 @@ function vTeacher(){
 function findLesson(code, id){ return lessonsOf(code).find(x=>x.id===id); }
 function vTMark(){
   const {code, id} = S.tsel || {}, x = findLesson(code, id); if(!x) return vTeacher();
-  const st = allStudents().find(s=>s.code===code && s.l.id===x.learnerId), L = LESSONS[x.lessonKey];
+  if(S.tedit===id) return vTEdit(code, x);
+  const st = allStudents().find(s=>s.code===code && s.l.id===x.learnerId), L = lessonOf(x);
   loadPages(code, x.pages||[]);
   const ex = x.ex || {}, exN = Object.keys(ex).length, exR = Object.values(ex).filter(Boolean).length;
   const CHIPS = ["Excellent work!","Good work!","Well tried!","Show all your method.","Work must be neat.","Use a ruler for graphs and tables.","Check your calculations.","Label your graph and give it a title.","Do your corrections."];
@@ -227,6 +228,7 @@ function vTMark(){
   <h2 class="h2s">His written work</h2>
   ${(x.pages||[]).length?`<div class="pages big">${x.pages.map((p,i)=>`<figure>${T.pages[p]?`<a href="#" data-act="l-zoom" data-p="${p}"><img src="${T.pages[p]}" alt="Page ${i+1}"></a>`:`<div class="ph">Loading…</div>`}<figcaption>Page ${i+1} · tap to enlarge</figcaption></figure>`).join("")}</div>`:`<p class="muted">No pages uploaded.</p>`}
   <details class="more"><summary>Memo (answers for marking)</summary><ol class="memo">${L.memo.map(m=>`<li>${esc(m)}</li>`).join("")}</ol></details>
+  <div class="row" style="margin:14px 0"><button class="btn" data-act="t-edit">✏️ Edit this lesson</button></div>
   <details class="more"><summary>See the lesson as the student sees it</summary><article class="notes"><p class="muted">${esc(L.intro)}</p>${L.notes}<h2>Worked examples</h2>${L.examples}<h2>Practice</h2><ol>${L.practice.map(q=>`<li>${esc(q.q)}<br><span class="muted">Hint: ${esc(q.h)}</span></li>`).join("")}</ol><h2>Test</h2>${L.testIntro}${lessonTestItems(L).map(t=>t.head?t.head:`<p><b>${t.n}.</b> ${esc(t.q)}</p>`).join("")}</article></details>
   <h2 class="h2s">Message to the student</h2>
   <form class="form" id="msgForm"><label for="t-editmsg">Change the message they see at the top of the lesson<textarea id="t-editmsg" rows="2" maxlength="300">${esc(x.msg||"")}</textarea></label><div><button class="btn ghost" type="submit">Save message</button></div></form>
@@ -245,11 +247,56 @@ function vTMark(){
   ${S.tdel===x.id?`<div class="row"><button class="btn ghost danger" data-act="t-delyes" data-c="${code}" data-id="${esc(x.id)}">Yes, delete it</button><button class="btn ghost" data-act="t-delno">Cancel</button></div>`:`<div><button class="btn ghost danger" data-act="t-del" data-id="${esc(x.id)}">Delete lesson</button></div>`}`;
 }
 
+/* ---------- lesson editor (teacher) ---------- */
+const TB = `<div class="etools"><button type="button" data-act="t-fmt" data-f="bold"><b>B</b></button><button type="button" data-act="t-fmt" data-f="italic"><i>I</i></button><button type="button" data-act="t-fmt" data-f="h2">Heading</button><button type="button" data-act="t-fmt" data-f="insertUnorderedList">• List</button><button type="button" data-act="t-fmt" data-f="insertOrderedList">1. List</button></div>`;
+function vTEdit(code, x){
+  const L = lessonOf(x), st = allStudents().find(s=>s.code===code && s.l.id===x.learnerId);
+  let n = 0;
+  const testRows = L.test.map((t,i)=> t.startsWith("<h3>")
+    ? (t.includes("<svg") ? `<div class="ehead">${t}<p class="muted" style="font-size:13px">This graph can't be edited here.</p></div>`
+       : `<div class="ehead"><div class="edit small" contenteditable="true" data-ti="${i}">${t}</div></div>`)
+    : `<label>Question ${++n}<textarea rows="2" data-ti="${i}">${esc(t)}</textarea></label>`).join("");
+  return `${crumbs([...(S.family&&S.family.teacher?[]:[{act:"parent",label:"Parent"}]),{act:"teacher",label:"Teacher"},{label:"Edit lesson"}])}
+  <h1 class="pagetitle">Edit lesson</h1>
+  <p class="muted">Changes apply only to the copy you gave ${esc(st?st.l.name:"this student")}. Tap into any text to change it, then press <b>Save changes</b> at the bottom.</p>
+  <form class="form wide" id="editForm">
+    <label for="e-title">Title<input id="e-title" maxlength="140" value="${esc(L.title)}"></label>
+    <label for="e-intro">Introduction<textarea id="e-intro" rows="3">${esc(L.intro)}</textarea></label>
+    <h2 class="h2s">Notes</h2>${TB}<div class="edit notes" id="e-notes" contenteditable="true">${L.notes}</div>
+    <h2 class="h2s">Worked examples</h2>${TB}<div class="edit notes" id="e-examples" contenteditable="true">${L.examples}</div>
+    <h2 class="h2s">Practice questions</h2>
+    ${L.practice.map((q,i)=>`<fieldset class="efs"><legend>Practice ${i+1}</legend>
+      <label>Question<textarea rows="2" data-pq="${i}">${esc(q.q)}</textarea></label>
+      ${q.o.map((o,j)=>`<label class="eopt"><input type="radio" name="pa${i}" value="${j}" ${q.a===j?"checked":""} aria-label="Correct answer"> <input data-po="${i}-${j}" value="${esc(o)}" aria-label="Option ${j+1}"></label>`).join("")}
+      <p class="muted" style="font-size:13px;margin:0">Tick the circle next to the correct answer.</p>
+      <label>Hint<input data-ph="${i}" value="${esc(q.h)}"></label>
+      <label>Explanation shown after answering<input data-pe="${i}" value="${esc(q.e||"")}"></label></fieldset>`).join("")}
+    <h2 class="h2s">Test</h2>${testRows}
+    <h2 class="h2s">Memo (only you see this)</h2>
+    ${L.memo.map((m,i)=>`<label>Answer ${i+1}<textarea rows="2" data-mi="${i}">${esc(m)}</textarea></label>`).join("")}
+    <div class="row sticky-save"><button class="btn" type="submit">Save changes</button><button class="btn ghost" type="button" data-act="t-editno">Cancel</button></div>
+    ${x.custom?`<p class="muted" style="font-size:14px">Want the original back? <button type="button" class="linkbtn danger" data-act="t-editreset">Undo all my changes</button></p>`:""}
+  </form>`;
+}
+function cleanHtml(h){ const d = document.createElement("div"); d.innerHTML = h; d.querySelectorAll("script,style,iframe,object").forEach(n=>n.remove()); d.querySelectorAll("*").forEach(n=>[...n.attributes].forEach(a=>{ if(/^on/i.test(a.name) || /javascript:/i.test(a.value)) n.removeAttribute(a.name); })); return d.innerHTML; }
+function readEdits(x){
+  const L = LESSONS[x.lessonKey], q = s => document.querySelector(s), all = s => [...document.querySelectorAll(s)];
+  const test = L.test.slice(); const cur = lessonOf(x);
+  cur.test.forEach((t,i)=>test[i]=t);
+  all("[data-ti]").forEach(el=>{ const i = +el.dataset.ti; test[i] = el.tagName==="TEXTAREA" ? el.value.trim() : cleanHtml(el.innerHTML); });
+  return {
+    title: q("#e-title").value.trim() || L.title, intro: q("#e-intro").value.trim(),
+    notes: cleanHtml(q("#e-notes").innerHTML), examples: cleanHtml(q("#e-examples").innerHTML),
+    practice: L.practice.map((p,i)=>({q:q(`[data-pq="${i}"]`).value.trim(), o:p.o.map((_,j)=>q(`[data-po="${i}-${j}"]`).value.trim()), a:+(q(`input[name="pa${i}"]:checked`)?.value ?? p.a), h:q(`[data-ph="${i}"]`).value.trim(), e:q(`[data-pe="${i}"]`).value.trim()})),
+    test, memo: all("[data-mi]").map(el=>el.value.trim())
+  };
+}
+
 /* ---------- parent view ---------- */
 function vPLessons(k){
   const mine = (S.lessons||[]).filter(x=>x.learnerId===k.id).sort((a,b)=>b.assignedAt-a.assignedAt);
   if(!mine.length) return "";
-  return `<h2 class="h2s">Lessons from the teacher</h2><div class="topiclist">${mine.map(x=>{ const L = LESSONS[x.lessonKey], [st,cls] = lstatus(x), ex = x.ex||{};
+  return `<h2 class="h2s">Lessons from the teacher</h2><div class="topiclist">${mine.map(x=>{ const L = lessonOf(x), [st,cls] = lstatus(x), ex = x.ex||{};
     const open = S.plopen===x.id;
     return `<div class="tcard static"><span class="meta"><b>${esc(L.title)}</b><span class="pill ${cls}">${st}</span></span>
       <span class="muted" style="font-size:14px">Given ${fmtDate(x.assignedAt)} · practice ${Object.values(ex).filter(Boolean).length}/5 right first time${minsTaken(x)!=null?` · test took ${minsTaken(x)} min`:""}${x.status==="marked"?` · <b>Mark ${x.mark}/${L.outOf} (${Math.round(x.mark/L.outOf*100)}%)</b>`:""}</span>
@@ -269,7 +316,7 @@ document.addEventListener("click", e=>{
   else if(act==="l-tab"){ S.ltab = b.dataset.t; render(); window.scrollTo(0,0); }
   else if(act==="l-npage"){ S.lnpage = +b.dataset.p; render(); document.querySelector(".notes")?.scrollIntoView({block:"start"}); }
   else if(act==="l-pick"){
-    const x = curLesson(), L = LESSONS[x.lessonKey], qi = +b.dataset.q, oi = +b.dataset.o, q = L.practice[qi];
+    const x = curLesson(), L = lessonOf(x), qi = +b.dataset.q, oi = +b.dataset.o, q = L.practice[qi];
     S.ltried = S.ltried || {}; const tr = S.ltried[qi] = S.ltried[qi] || [];
     if(oi===q.a){ x.ex = {...(x.ex||{}), [qi]: tr.length===0}; if(x.status==="assigned") x.status = "started"; saveLesson(S.code, x); }
     else tr.push(oi);
@@ -280,9 +327,13 @@ document.addEventListener("click", e=>{
   else if(act==="l-submit"){ const x = curLesson(); if(!(x.pages||[]).length) return; x.status = "submitted"; x.submittedAt = Date.now(); saveLesson(S.code, x); render(); window.scrollTo(0,0); }
   else if(act==="l-zoom"){ e.preventDefault(); const src = T.pages[b.dataset.p]; if(src){ S.zoom = src; render(); } }
   else if(act==="t-zoomclose"){ S.zoom = null; render(); }
-  else if(act==="t-mark"){ S.tsel = {code:b.dataset.c, id:b.dataset.id}; go("tmark"); }
+  else if(act==="t-mark"){ S.tedit = null; S.tsel = {code:b.dataset.c, id:b.dataset.id}; go("tmark"); }
   else if(act==="t-chip"){ const ta = document.getElementById("m-fb"); ta.value = (ta.value ? ta.value.trim()+" " : "") + b.dataset.t; }
   else if(act==="t-redo"){ const {code,id} = S.tsel, x = findLesson(code,id); x.status = "redo"; x.feedback = document.getElementById("m-fb").value.trim(); x.method = document.getElementById("m-method").value; x.neatness = document.getElementById("m-neat").value; saveLesson(code, x); go("teacher"); S.note = "Sent back for redoing."; render(); }
+  else if(act==="t-edit"){ S.tedit = S.tsel && S.tsel.id; render(); window.scrollTo(0,0); }
+  else if(act==="t-editno"){ S.tedit = null; render(); window.scrollTo(0,0); }
+  else if(act==="t-editreset"){ const {code,id} = S.tsel, x = findLesson(code,id); delete x.custom; saveLesson(code, x); S.tedit = null; S.note = "The lesson is back to the original."; render(); window.scrollTo(0,0); }
+  else if(act==="t-fmt"){ e.preventDefault(); const f = b.dataset.f; if(f==="h2") document.execCommand("formatBlock", false, "h3"); else document.execCommand(f); }
   else if(act==="t-del"){ S.tdel = b.dataset.id; render(); }
   else if(act==="t-delno"){ S.tdel = null; render(); }
   else if(act==="t-delyes"){
@@ -294,6 +345,7 @@ document.addEventListener("click", e=>{
   else if(act==="t-unlink"){ famRef.collection("links").doc(b.dataset.c).delete().catch(()=>{}); }
   else if(act==="p-pages"){ S.plopen = b.dataset.id; render(); }
 });
+document.addEventListener("mousedown", e=>{ if(e.target.closest(".etools button")) e.preventDefault(); });
 document.addEventListener("change", e=>{ if(e.target.id==="t-stud"){ S.tstud = +e.target.value; render(); } });
 document.addEventListener("submit", async e=>{
   if(e.target.id==="tauthForm"){
@@ -334,6 +386,12 @@ document.addEventListener("submit", async e=>{
     catch(err){ S.note = "Couldn't check that code. Check your connection."; render(); return; }
     famRef.collection("links").doc(code).set({label, at:Date.now()}); S.note = "Family linked. Their learners now appear in the student list."; render();
   }
+  if(e.target.id==="editForm"){
+    e.preventDefault();
+    const {code,id} = S.tsel || {}, x = findLesson(code,id); if(!x) return;
+    x.custom = readEdits(x); x.editedAt = Date.now(); saveLesson(code, x); S.tedit = null; S.note = "Changes saved. The student sees the new version now."; render(); window.scrollTo(0,0);
+    return;
+  }
   if(e.target.id==="msgForm"){
     e.preventDefault();
     const {code,id} = S.tsel || {}, x = findLesson(code,id); if(!x) return;
@@ -342,12 +400,12 @@ document.addEventListener("submit", async e=>{
   }
   if(e.target.id==="markForm"){
     e.preventDefault();
-    const {code,id} = S.tsel, x = findLesson(code,id), L = LESSONS[x.lessonKey], m = Math.max(0, Math.min(L.outOf, Math.round(+document.getElementById("m-mark").value)));
+    const {code,id} = S.tsel, x = findLesson(code,id), L = lessonOf(x), m = Math.max(0, Math.min(L.outOf, Math.round(+document.getElementById("m-mark").value)));
     Object.assign(x, {mark:m, method:document.getElementById("m-method").value, neatness:document.getElementById("m-neat").value, feedback:document.getElementById("m-fb").value.trim(), status:"marked", markedAt:Date.now()});
     saveLesson(code, x); go("teacher"); S.note = "Mark saved. The student and parent can see it now."; render();
   }
 });
 /* live test timer */
-setInterval(()=>{ const el = document.getElementById("ltimer"); if(!el) return; const x = curLesson(); if(!x || !x.testStartedAt) return; const L = LESSONS[x.lessonKey], left = timeLeft(x, L);
+setInterval(()=>{ const el = document.getElementById("ltimer"); if(!el) return; const x = curLesson(); if(!x || !x.testStartedAt) return; const L = lessonOf(x), left = timeLeft(x, L);
   if(left===0 && el.textContent!=="Time is up"){ render(); try{ say("Time is up. Put your pen down and upload your pages."); }catch(e){} } else if(left>0) el.textContent = mm(left); }, 1000);
 function zoomLayer(){ return S.zoom ? `<div class="zoom" role="dialog" aria-label="Page photo"><button class="btn" data-act="t-zoomclose">Close</button><img src="${S.zoom}" alt="Page photo"></div>` : ""; }

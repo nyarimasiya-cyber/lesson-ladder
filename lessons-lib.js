@@ -268,3 +268,12 @@ Fair: "How do you rate the tuckshop's prices? (Too expensive / About right / Che
 };
 /* Numbered test questions: section headers (strings starting with "<h3>") are not numbered. */
 function lessonTestItems(L){ let n = 0; return L.test.map(t => t.startsWith("<h3>") ? {head:t} : {n:++n, q:t}); }
+
+/* A given lesson can carry the teacher's own edits (x.custom); they apply to that lesson only. */
+function lessonOf(x){
+  const B = LESSONS[x.lessonKey]; if(!B) return null;
+  const c = x.custom || {};
+  return {...B, title:c.title||B.title, intro:c.intro??B.intro, notes:c.notes??B.notes, examples:c.examples??B.examples,
+    practice:B.practice.map((p,i)=>({...p, ...((c.practice||[])[i]||{})})),
+    test:B.test.map((t,i)=>(c.test||[])[i] ?? t), memo:B.memo.map((m,i)=>(c.memo||[])[i] ?? m)};
+}

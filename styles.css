@@ -354,3 +354,19 @@ i.h1{background:var(--h1)!important} i.h2{background:var(--h2)!important} i.h3{b
 .kidnums{display:grid;justify-items:end;gap:2px;font-size:14px;flex:none}
 .form select,.form textarea,.form input{width:100%;max-width:100%;box-sizing:border-box;min-width:0}
 .form,.form label{min-width:0}
+/* lesson editor */
+.form.wide{max-width:none;grid-template-columns:minmax(0,1fr)}
+.edit{overflow-x:auto;min-width:0}
+.edit{border:1px dashed var(--line,#c9cfd6);border-radius:10px;padding:12px 14px;background:var(--card,#fff);min-height:80px;outline:none}
+.edit:focus{border-style:solid;border-color:var(--accent)}
+.edit.small{min-height:0}
+.etools{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+.etools button{border:1px solid var(--line,#c9cfd6);background:var(--card,#fff);border-radius:8px;padding:6px 10px;font:inherit;font-size:14px;color:inherit}
+.efs{border:1px solid var(--line,#c9cfd6);border-radius:10px;padding:10px 12px;display:grid;gap:8px;min-width:0}
+.efs legend{font-weight:700;padding:0 4px}
+.eopt{display:flex;align-items:center;gap:8px}
+.eopt input[type=radio]{width:22px;height:22px;flex:none}
+.eopt input:not([type=radio]){flex:1;min-width:0}
+.ehead .lgraph{max-width:100%}
+.sticky-save{position:sticky;bottom:0;background:var(--bg,#eef1f4);padding:10px 0;z-index:2}
+.form.wide textarea,.form.wide input{font-weight:400}

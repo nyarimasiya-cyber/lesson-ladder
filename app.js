@@ -710,7 +710,7 @@ function evOf(a){
 function eventsFor(lid){
   const reads = S.reads.filter(r=>r.learnerId===lid && r.at && TOPIC[r.topicId]);
   const atts = S.attempts.filter(a=>a.learnerId===lid && a.at);
-  const les = (S.lessons||[]).filter(x=>x.learnerId===lid && x.submittedAt && typeof LESSONS==="object" && LESSONS[x.lessonKey]).map(x=>({at:x.submittedAt, kind:"lesson", label:"Teacher lesson test handed in", subject:sname(LESSONS[x.lessonKey].subject, LESSONS[x.lessonKey].grade), title:LESSONS[x.lessonKey].title, score: x.status==="marked" ? `${x.mark}/${LESSONS[x.lessonKey].outOf}` : ""}));
+  const les = (S.lessons||[]).filter(x=>x.learnerId===lid && x.submittedAt && typeof LESSONS==="object" && lessonOf(x)).map(x=>({at:x.submittedAt, kind:"lesson", label:"Teacher lesson test handed in", subject:sname(lessonOf(x).subject, lessonOf(x).grade), title:lessonOf(x).title, score: x.status==="marked" ? `${x.mark}/${lessonOf(x).outOf}` : ""}));
   return [...reads, ...atts].map(evOf).concat(les).sort((a,b)=>b.at-a.at);
 }
 const eventsIn = (lid,p) => { const from = periodStart(p).getTime(); return eventsFor(lid).filter(e=>e.at>=from); };
@@ -811,7 +811,7 @@ function render(){
   if(draft){ const i=document.getElementById("new-name"); if(i) i.value=draft; }
 }
 setInterval(()=>{ const el=document.getElementById("mocktime"); if(el && S.quiz && S.quiz.started) el.textContent = mm(Math.floor((Date.now()-S.quiz.started)/1000)); }, 1000);
-function softRender(){ if(S.view==="quiz" || S.view==="write"){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select,textarea")) { nav(); return; } render(); }
+function softRender(){ if(S.view==="quiz" || S.view==="write" || S.tedit){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select,textarea")) { nav(); return; } render(); }
 function go(view){ S.view=view; S.note=""; render(); window.scrollTo(0,0); }
 
 /* ---------- quizzes ---------- */
@@ -883,7 +883,7 @@ document.addEventListener("click", async e=>{
   else if(act==="home"){ go(l?"home":"pick"); }
   else if(act==="pick"){ go("pick"); }
   else if(act==="parent"){ go("parent"); }
-  else if(act==="teacher"){ go("teacher"); }
+  else if(act==="teacher"){ S.tedit = null; go("teacher"); }
   else if(act==="choose"){ S.learnerId=b.dataset.id; pref.set("ll-learner",S.learnerId); go("home"); }
   else if(act==="subject"){ if(b.dataset.s) S.subject=b.dataset.s; go("subject"); }
   else if(act==="term"){ S.term=+b.dataset.t; go("term"); }
