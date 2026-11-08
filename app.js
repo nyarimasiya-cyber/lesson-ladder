@@ -75,13 +75,14 @@ function startFirebase(){
 }
 function openFamily(code){
   unsubs.forEach(u=>u()); unsubs=[];
-  S.code = code; S.learners=[]; S.attempts=[]; S.reads=[];
+  S.code = code; S.learners=[]; S.attempts=[]; S.reads=[]; S.lessons=[]; S.links=[];
   famRef = fs.collection("families").doc(code);
   S.parentOk = pref.get("ll-parent-device")===code;
   unsubs.push(famRef.onSnapshot(d=>{ S.family = d.exists ? d.data() : null; softRender(); }, onDbError));
-  ["learners","attempts","reads"].forEach(kind=>{
+  ["learners","attempts","reads","lessons","links"].forEach(kind=>{
     unsubs.push(famRef.collection(kind).onSnapshot(snap=>{
       S[kind] = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      if(kind==="links" && typeof syncLinks==="function") syncLinks();
       if(S.mode!=="ready"){ S.mode="ready"; render(); } else softRender();
     }, onDbError));
   });
@@ -244,6 +245,7 @@ function vHome(){
     <div class="stat"><div class="eyebrow">Best average</div><div class="v">${avg==null?"–":avg+"%"}</div></div>
     <div class="stat"><div class="eyebrow">Weak spots fixed</div><div class="v">${fixedCount(l.id)}</div></div>
   </div>
+  ${typeof lessonCards==="function" ? lessonCards(l) : ""}
   <button class="mockbar" data-act="mocks"><span><b>Term 4 mock exams</b><span class="muted">Practise a full exam for every subject</span></span><span aria-hidden="true">›</span></button>
   ${weakPanel(l)}
   <div class="tiles">${subs.map(s=>{
@@ -429,10 +431,12 @@ function vQuiz(){
     const off = checked || tried.includes(i);
     return `<button class="opt ${cls}" role="radio" aria-checked="${picked===i}" data-act="pickopt" data-i="${i}" ${off?"disabled":""}><span class="k">${L[i]}</span><span>${esc(o)}</span></button>`}).join("");
   let fb = "";
-  if(z.kind==="practice" && !checked && tried.length) fb = `<div class="fb hint"><b>Not quite. Here's a hint:</b>${esc(q.h)} Try again.</div>`;
+  const cheer = (list, k) => list[(z.i + k) % list.length];
+  const GOOD = ["Excellent!","Well done!","Great work!","Spot on!","Super!"], TRIED = ["Well tried!","Good effort!","Nearly there!","Keep going!"];
+  if(z.kind==="practice" && !checked && tried.length) fb = `<div class="fb hint"><b>${cheer(TRIED, tried.length)} Here's a hint:</b>${esc(q.h)} Try again.</div>`;
   else if(checked && !exam){
     const ok = z.kind==="practice" ? true : picked===q.a;
-    const head = z.kind==="practice" ? (tried.length?"Got it.":"Correct, first try.") : ok ? (z.kind==="review"?"Fixed. That one is off your weak list.":"Correct.") : "Not quite. The answer is "+L[q.a]+".";
+    const head = z.kind==="practice" ? (tried.length?`${cheer(TRIED,0)} You got it.`:`${cheer(GOOD,0)} Correct, first try.`) : ok ? (z.kind==="review"?`${cheer(GOOD,0)} That one is off your weak list.`:`${cheer(GOOD,0)} Correct.`) : `${cheer(TRIED,0)} The answer is ${L[q.a]}.`;
     fb = `<div class="fb ${ok?"ok":"no"}"><b>${head}</b>${esc(q.e)}</div>`;
   }
   const last = z.i===n-1;
@@ -468,6 +472,7 @@ function vMockResult(){
   <span class="eyebrow">Mock Paper ${r.paper||1} · ${esc(sname(r.subject,g))}</span>
   <div class="score"><div class="big">${pct}<small>%</small></div>
     <div><div style="font-weight:700;font-size:20px">${score}/${n} · Level ${lv}: ${ln}</div>
+    <div style="font-weight:600">${praiseFor(pct)}</div>
     <div class="muted">${pct>=50?"That's a pass. ":"Not a pass yet, keep going. "}Time: ${mm(r.secs||0)}. Saved for the parent report.</div></div></div>
   ${revise.length?`<div class="banner"><b>Revise these first:</b> ${revise.map(x=>esc(x.topic.title)).join(", ")}</div>`:`<p>No topic below 60%. Well done.</p>`}
   <h2 class="h2s">Marks per topic</h2>
@@ -492,6 +497,7 @@ function vResult(){
   <span class="eyebrow">${isReview?"Weak-spot practice":(isChapter?"Chapter test · ":"Test · ")+esc(t.title)}</span>
   <div class="score"><div class="big">${score}<small>/${n}</small></div>
     <div><div style="font-weight:700;font-size:20px">${isReview?`${score} fixed, ${n-score} still to fix`:`${pct}% · Level ${lv}: ${ln}`}</div>
+    <div style="font-weight:600">${isReview ? (score===n?"Excellent! All fixed.":score?"Well done, keep going!":"Well tried! Have another go.") : praiseFor(pct)}</div>
     <div class="muted">Saved for the parent report. ${left?`You have ${left} weak spot${left===1?"":"s"} left.`:"You have no weak spots left."}</div></div></div>
   ${wrong.length?`<h2 style="font-size:20px">${isChapter?"Questions you got wrong":"Still to fix"}</h2><div class="miss">${wrong.map(x=>{const q=getQ(x.t,x.q);return `<div><b>${esc(q.q)}</b><br>Answer: ${esc(q.o[q.a])}<br><span class="muted">${esc(q.e)}</span></div>`}).join("")}</div>`:`<p>You got every question right.</p>`}
   <div class="row" style="margin-top:20px">
@@ -534,6 +540,7 @@ function vParent(){
       <span>${isGradeR(k)?`Writing: ${wRecs(k.id).length} exercises`:avgTxt(sm.avg)}</span>
       <span class="muted">Today: ${(n=>n?`${n} activit${n===1?"y":"ies"}`:"nothing yet")(eventsIn(k.id,"today").length)}</span>
       ${isGradeR(k)?"":`<span class="muted">${sm.tried} topics tested${sm.weak?` · <span class="warnword">${sm.weak} weak spot${sm.weak===1?"":"s"}</span>`:""}</span>`}</button>`;}).join("")}</div>
+  <button class="mockbar" data-act="teacher"><span><b>👩‍🏫 Teacher</b><span class="muted">Give lessons, mark written tests, link other families</span></span><span aria-hidden="true">›</span></button>
   ${recent.length?`<h2 class="h2s">Recent activity</h2><div class="feed" style="margin-bottom:24px">${recent.map(a=>{const k=S.learners.find(x=>x.id===a.learnerId); const ev=evOf(a); return `<div><span><b>${esc(k.name)}</b> · ${esc(ev.title)}</span><span class="num">${ev.score||esc(ev.label)}</span></div>`}).join("")}</div>`:""}
   <details class="more" ${kids.length?"":"open"}><summary>Add a learner</summary>
   <form class="form" id="addForm">
@@ -562,6 +569,7 @@ function vPChild(){
     <div class="stat"><div class="eyebrow">Best average</div><div class="v">${sm.avg==null?"–":sm.avg+"%"}</div><div class="muted" style="font-size:13px">${sm.avg==null?"":"Level "+level(sm.avg)[0]+" · "+level(sm.avg)[1]}</div></div>
     <div class="stat"><div class="eyebrow">Weak spots</div><div class="v">${sm.weak}</div><div class="muted" style="font-size:13px">${fixedCount(k.id)} fixed</div></div>
   </div>`}
+  ${typeof vPLessons==="function" ? vPLessons(k) : ""}
   <h2 class="h2s">What ${esc(k.name)} did</h2>
   <div class="tiles periods">${PERIODS.map(([p,label])=>{ const ev=eventsIn(k.id,p), days=new Set(ev.map(e=>dayKey(e.at))).size;
     return `<button class="tile" data-act="pper" data-p="${p}"><b>${label}</b><span class="muted">${ev.length?`${ev.length} activit${ev.length===1?"y":"ies"} · ${days} day${days===1?"":"s"}`:"Nothing yet"}</span></button>`;}).join("")}</div>
@@ -647,7 +655,8 @@ function evOf(a){
 function eventsFor(lid){
   const reads = S.reads.filter(r=>r.learnerId===lid && r.at && TOPIC[r.topicId]);
   const atts = S.attempts.filter(a=>a.learnerId===lid && a.at);
-  return [...reads, ...atts].map(evOf).sort((a,b)=>b.at-a.at);
+  const les = (S.lessons||[]).filter(x=>x.learnerId===lid && x.submittedAt && typeof LESSONS==="object" && LESSONS[x.lessonKey]).map(x=>({at:x.submittedAt, kind:"lesson", label:"Teacher lesson test handed in", subject:sname(LESSONS[x.lessonKey].subject, LESSONS[x.lessonKey].grade), title:LESSONS[x.lessonKey].title, score: x.status==="marked" ? `${x.mark}/${LESSONS[x.lessonKey].outOf}` : ""}));
+  return [...reads, ...atts].map(evOf).concat(les).sort((a,b)=>b.at-a.at);
 }
 const eventsIn = (lid,p) => { const from = periodStart(p).getTime(); return eventsFor(lid).filter(e=>e.at>=from); };
 function daySummary(ev){
@@ -723,7 +732,7 @@ function render(){
   if(S.mode==="loading") html += `<p class="muted">Loading…</p>`;
   else if(S.mode==="setup") html += vSetup();
   else if(S.mode==="nofamily") html += vAuth();
-  else if(["parent","pchild","psubject","pterm","pact","pday"].includes(S.view)) html += !S.parentOk ? vParentLock() : S.view==="pact" ? vPActivity() : S.view==="pday" ? vPDay(false) : S.view==="pchild" ? vPChild() : S.view==="psubject" ? vPSubject() : S.view==="pterm" ? vPTerm() : vParent();
+  else if(["parent","pchild","psubject","pterm","pact","pday","teacher","tmark"].includes(S.view)) html += !S.parentOk ? vParentLock() : S.view==="teacher" ? vTeacher() : S.view==="tmark" ? vTMark() : S.view==="pact" ? vPActivity() : S.view==="pday" ? vPDay(false) : S.view==="pchild" ? vPChild() : S.view==="psubject" ? vPSubject() : S.view==="pterm" ? vPTerm() : vParent();
   else if(S.view==="pick" || !learner()) html += vPick();
   else if(S.view==="subject") html += vSubject();
   else if(S.view==="term") html += vTerm();
@@ -731,6 +740,7 @@ function render(){
   else if(S.view==="quiz") html += vQuiz();
   else if(S.view==="result") html += vResult();
   else if(S.view==="mocks") html += vMocks();
+  else if(S.view==="lesson") html += vLesson();
   else if(S.view==="wsec") html += vWriteSection();
   else if(S.view==="write") html += vWriteItem();
   else if(S.view==="sounds") html += vSounds();
@@ -738,12 +748,13 @@ function render(){
   else if(S.view==="practicedone") html += vPracticeDone();
   else html += vHome();
   if(S.mode==="ready") html += `<p class="foot">${LOCAL?"Progress is saved on this device only. Once the online database is connected, it will sync between devices.":navigator.onLine?`Progress syncs to every device signed in to this family. Family code ends in ‑${showCode(S.code).slice(-4)}.`:"You're offline. Results are kept on this device and sync when you reconnect."}</p>`;
+  if(typeof zoomLayer==="function") html += zoomLayer();
   app.innerHTML = html;
   if(S.view==="write" && typeof padSetup==="function") setTimeout(padSetup, 0);
   if(draft){ const i=document.getElementById("new-name"); if(i) i.value=draft; }
 }
 setInterval(()=>{ const el=document.getElementById("mocktime"); if(el && S.quiz && S.quiz.started) el.textContent = mm(Math.floor((Date.now()-S.quiz.started)/1000)); }, 1000);
-function softRender(){ if(S.view==="quiz" || S.view==="write"){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select")) { nav(); return; } render(); }
+function softRender(){ if(S.view==="quiz" || S.view==="write"){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select,textarea")) { nav(); return; } render(); }
 function go(view){ S.view=view; S.note=""; render(); window.scrollTo(0,0); }
 
 /* ---------- quizzes ---------- */
@@ -815,6 +826,7 @@ document.addEventListener("click", async e=>{
   else if(act==="home"){ go(l?"home":"pick"); }
   else if(act==="pick"){ go("pick"); }
   else if(act==="parent"){ go("parent"); }
+  else if(act==="teacher"){ go("teacher"); }
   else if(act==="choose"){ S.learnerId=b.dataset.id; pref.set("ll-learner",S.learnerId); go("home"); }
   else if(act==="subject"){ if(b.dataset.s) S.subject=b.dataset.s; go("subject"); }
   else if(act==="term"){ S.term=+b.dataset.t; go("term"); }
