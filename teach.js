@@ -277,6 +277,7 @@ function vTMark(){
   const over = minsTaken(x)!=null && minsTaken(x) > L.minutes;
   return `${crumbs([...(S.family&&S.family.teacher?[]:[{act:"parent",label:"Parent"}]),{act:"teacher",label:"Teacher"},{label:st?st.l.name:"Lesson"}])}
   <h1 class="pagetitle">${esc(st?st.l.name:"")} · ${esc(L.title.split(":")[0])}</h1>
+  <div class="row" style="margin:0 0 12px"><a class="btn" href="#markhere">✔ Mark this work</a></div>
   <div class="strip">
     <div class="stat"><div class="eyebrow">Practice</div><div class="v">${exR}/5</div><div class="muted" style="font-size:13px">right first time (${exN}/5 done)</div></div>
     <div class="stat"><div class="eyebrow">Test time</div><div class="v">${minsTaken(x)!=null?minsTaken(x)+" min":"–"}</div><div class="muted" style="font-size:13px">${over?`<span class="warnword">over the ${L.minutes} min</span>`:`limit ${L.minutes} min`}${x.pauses?`<br>${pauseNote(x)}`:""}</div></div>
@@ -288,13 +289,8 @@ function vTMark(){
   <p class="muted" style="margin:10px 0 6px">Did ${esc(st?st.l.name:"the student")} send you the photos another way, for example on WhatsApp? Save them to your phone, then add them here. This hands in the work for ${esc(st?st.l.name:"the student")}, and his parent will see it.</p>
   <label class="btn ghost upl">📷 Add pages he sent me<input type="file" id="tupload" accept="image/*" multiple hidden></label>
   ${T.busy?`<p class="muted">Uploading…</p>`:""}
-  <details class="more"><summary>Memo (answers for marking)</summary><ol class="memo">${L.memo.map(m=>`<li>${esc(m)}</li>`).join("")}</ol></details>
-  <div class="row" style="margin:14px 0"><button class="btn" data-act="t-edit">✏️ Edit this lesson</button></div>
-  <details class="more"><summary>See the lesson as the student sees it</summary><article class="notes"><p class="muted">${esc(L.intro)}</p>${L.notes}<h2>Worked examples</h2>${L.examples}<h2>Practice</h2><ol>${L.practice.map(q=>`<li>${esc(q.q)}<br><span class="muted">Hint: ${esc(q.h)}</span></li>`).join("")}</ol><h2>Test</h2>${L.testIntro}${lessonTestItems(L).map(t=>t.head?t.head:`<p><b>${t.n}.</b> ${esc(t.q)}</p>`).join("")}</article></details>
-  <h2 class="h2s">Message to the student</h2>
-  <form class="form" id="msgForm"><label for="t-editmsg">Change the message they see at the top of the lesson<textarea id="t-editmsg" rows="2" maxlength="300">${esc(x.msg||"")}</textarea></label><div><button class="btn ghost" type="submit">Save message</button></div></form>
   ${["submitted","marked","redo"].includes(x.status)?"":notSent(x)?`<div class="banner">${esc(st?st.l.name:"The student")} uploaded ${x.pages.length} page${x.pages.length===1?"":"s"} but didn't press Submit. You can still mark the work now.</div>`:`<p class="muted">${esc(st?st.l.name:"The student")} hasn't uploaded any pages yet.</p>`}
-  <h2 class="h2s">Mark and feedback</h2>
+  <h2 class="h2s" id="markhere">Mark each question and give feedback</h2>
   <form class="form wide" id="markForm">
     ${qMarkRows(x, L)}
     <label for="m-mark">Mark out of ${L.outOf}<input id="m-mark" type="number" min="0" max="${L.outOf}" inputmode="numeric" value="${x.mark??""}" required></label>
@@ -304,6 +300,12 @@ function vTMark(){
     <label for="m-fb">Comments for the student and parent<textarea id="m-fb" rows="4" maxlength="1000">${esc(x.feedback||"")}</textarea></label>
     <div class="row"><button class="btn" type="submit">Save mark</button><button class="btn ghost" type="button" data-act="t-redo">Ask him to redo it</button></div>
   </form>
+  <h2 class="h2s">More</h2>
+  <details class="more"><summary>Memo (answers for marking)</summary><ol class="memo">${L.memo.map(m=>`<li>${esc(m)}</li>`).join("")}</ol></details>
+  <div class="row" style="margin:14px 0"><button class="btn" data-act="t-edit">✏️ Edit this lesson</button></div>
+  <details class="more"><summary>See the lesson as the student sees it</summary><article class="notes"><p class="muted">${esc(L.intro)}</p>${L.notes}<h2>Worked examples</h2>${L.examples}<h2>Practice</h2><ol>${L.practice.map(q=>`<li>${esc(q.q)}<br><span class="muted">Hint: ${esc(q.h)}</span></li>`).join("")}</ol><h2>Test</h2>${L.testIntro}${lessonTestItems(L).map(t=>t.head?t.head:`<p><b>${t.n}.</b> ${esc(t.q)}</p>`).join("")}</article></details>
+  <h2 class="h2s">Message to the student</h2>
+  <form class="form" id="msgForm"><label for="t-editmsg">Change the message they see at the top of the lesson<textarea id="t-editmsg" rows="2" maxlength="300">${esc(x.msg||"")}</textarea></label><div><button class="btn ghost" type="submit">Save message</button></div></form>
   <h2 class="h2s">Delete this lesson</h2>
   <p class="muted" style="margin:0 0 10px">Removes the lesson and any uploaded pages from the student's and parent's app. This can't be undone.</p>
   ${S.tdel===x.id?`<div class="row"><button class="btn ghost danger" data-act="t-delyes" data-c="${code}" data-id="${esc(x.id)}">Yes, delete it</button><button class="btn ghost" data-act="t-delno">Cancel</button></div>`:`<div><button class="btn ghost danger" data-act="t-del" data-id="${esc(x.id)}">Delete lesson</button></div>`}`;
