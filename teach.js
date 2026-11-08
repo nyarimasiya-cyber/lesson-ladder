@@ -201,7 +201,7 @@ function vTeacher(){
     <label for="t-lesson">Lesson<select id="t-lesson">${lopts||`<option value="">No lessons for this grade yet</option>`}</select></label>
     <label for="t-msg">Message to the student (optional)<textarea id="t-msg" rows="2" maxlength="300" placeholder="e.g. Do this before Friday. Remember: neat work and show your method."></textarea></label>
     <div><button class="btn" type="submit" ${lopts?"":"disabled"}>Give this lesson</button></div></form>`:`<p class="muted">Add a learner or link a family first.</p>`}
-  ${lessons.length?`<h2 class="h2s">All lessons</h2><div class="feed">${lessons.map(o=>{const [st,cls]=lstatus(o.x), L=LESSONS[o.x.lessonKey]; return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px"><span class="pill ${cls}">${st}</span>${["submitted","marked","redo"].includes(o.x.status)?`<button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">Open</button>`:""}</span></div>`;}).join("")}</div>`:""}
+  ${lessons.length?`<h2 class="h2s">All lessons</h2><div class="feed">${lessons.map(o=>{const [st,cls]=lstatus(o.x), L=LESSONS[o.x.lessonKey]; return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}).join("")}</div>`:""}
   <h2 class="h2s">Students in other families</h2>
   <p class="muted" style="margin:0 0 10px">To teach a child from another family, ask their parent for their family code (Parent → Family code on their device). Their parent will see the lessons and marks in their own app.</p>
   ${(S.links||[]).length?`<div class="feed" style="margin-bottom:12px">${S.links.map(x=>`<div><span><b>${esc(x.label||"Linked family")}</b> · ${(T.fams[x.id]?.learners||[]).map(l=>esc(l.name)).join(", ")||"loading…"}</span><button class="linkbtn" data-act="t-unlink" data-c="${x.id}">Remove</button></div>`).join("")}</div>`:""}
@@ -227,6 +227,10 @@ function vTMark(){
   <h2 class="h2s">His written work</h2>
   ${(x.pages||[]).length?`<div class="pages big">${x.pages.map((p,i)=>`<figure>${T.pages[p]?`<a href="#" data-act="l-zoom" data-p="${p}"><img src="${T.pages[p]}" alt="Page ${i+1}"></a>`:`<div class="ph">Loading…</div>`}<figcaption>Page ${i+1} · tap to enlarge</figcaption></figure>`).join("")}</div>`:`<p class="muted">No pages uploaded.</p>`}
   <details class="more"><summary>Memo (answers for marking)</summary><ol class="memo">${L.memo.map(m=>`<li>${esc(m)}</li>`).join("")}</ol></details>
+  <details class="more"><summary>See the lesson as the student sees it</summary><article class="notes"><p class="muted">${esc(L.intro)}</p>${L.notes}<h2>Worked examples</h2>${L.examples}<h2>Practice</h2><ol>${L.practice.map(q=>`<li>${esc(q.q)}<br><span class="muted">Hint: ${esc(q.h)}</span></li>`).join("")}</ol><h2>Test</h2>${L.testIntro}${lessonTestItems(L).map(t=>t.head?t.head:`<p><b>${t.n}.</b> ${esc(t.q)}</p>`).join("")}</article></details>
+  <h2 class="h2s">Message to the student</h2>
+  <form class="form" id="msgForm"><label for="t-editmsg">Change the message they see at the top of the lesson<textarea id="t-editmsg" rows="2" maxlength="300">${esc(x.msg||"")}</textarea></label><div><button class="btn ghost" type="submit">Save message</button></div></form>
+  ${["submitted","marked","redo"].includes(x.status)?"":`<p class="muted">${esc(st?st.l.name:"The student")} hasn't submitted the test yet. You can mark it once the pages are uploaded.</p>`}
   <h2 class="h2s">Mark and feedback</h2>
   <form class="form" id="markForm">
     <label for="m-mark">Mark out of ${L.outOf}<input id="m-mark" type="number" min="0" max="${L.outOf}" inputmode="numeric" value="${x.mark??""}" required></label>
@@ -235,7 +239,10 @@ function vTMark(){
     <div class="chips">${CHIPS.map(c=>`<button type="button" class="chip" data-act="t-chip" data-t="${esc(c)}">${esc(c)}</button>`).join("")}</div>
     <label for="m-fb">Comments for the student and parent<textarea id="m-fb" rows="4" maxlength="1000">${esc(x.feedback||"")}</textarea></label>
     <div class="row"><button class="btn" type="submit">Save mark</button><button class="btn ghost" type="button" data-act="t-redo">Ask him to redo it</button></div>
-  </form>`;
+  </form>
+  <h2 class="h2s">Delete this lesson</h2>
+  <p class="muted" style="margin:0 0 10px">Removes the lesson and any uploaded pages from the student's and parent's app. This can't be undone.</p>
+  ${S.tdel===x.id?`<div class="row"><button class="btn ghost danger" data-act="t-delyes" data-c="${code}" data-id="${esc(x.id)}">Yes, delete it</button><button class="btn ghost" data-act="t-delno">Cancel</button></div>`:`<div><button class="btn ghost danger" data-act="t-del" data-id="${esc(x.id)}">Delete lesson</button></div>`}`;
 }
 
 /* ---------- parent view ---------- */
@@ -276,6 +283,14 @@ document.addEventListener("click", e=>{
   else if(act==="t-mark"){ S.tsel = {code:b.dataset.c, id:b.dataset.id}; go("tmark"); }
   else if(act==="t-chip"){ const ta = document.getElementById("m-fb"); ta.value = (ta.value ? ta.value.trim()+" " : "") + b.dataset.t; }
   else if(act==="t-redo"){ const {code,id} = S.tsel, x = findLesson(code,id); x.status = "redo"; x.feedback = document.getElementById("m-fb").value.trim(); x.method = document.getElementById("m-method").value; x.neatness = document.getElementById("m-neat").value; saveLesson(code, x); go("teacher"); S.note = "Sent back for redoing."; render(); }
+  else if(act==="t-del"){ S.tdel = b.dataset.id; render(); }
+  else if(act==="t-delno"){ S.tdel = null; render(); }
+  else if(act==="t-delyes"){
+    const code = b.dataset.c, id = b.dataset.id, x = findLesson(code, id);
+    (x && x.pages || []).forEach(p=>famDoc(code).collection("pages").doc(p).delete().catch(()=>{}));
+    famDoc(code).collection("lessons").doc(id).delete().then(()=>{ S.tdel = null; S.note = "Lesson deleted."; if(S.view==="tmark") go("teacher"); else render(); })
+      .catch(()=>{ S.note = "The lesson wasn't deleted. Check your connection."; render(); });
+  }
   else if(act==="t-unlink"){ famRef.collection("links").doc(b.dataset.c).delete().catch(()=>{}); }
   else if(act==="p-pages"){ S.plopen = b.dataset.id; render(); }
 });
@@ -306,7 +321,8 @@ document.addEventListener("submit", async e=>{
     e.preventDefault();
     const s = allStudents()[+document.getElementById("t-stud").value], key = document.getElementById("t-lesson").value;
     if(!s || !LESSONS[key]) return;
-    const x = {id:uid(), learnerId:s.l.id, lessonKey:key, msg:document.getElementById("t-msg").value.trim(), assignedAt:Date.now(), status:"assigned", ex:{}, pages:[]};
+    if(lessonsOf(s.code).some(o=>o.learnerId===s.l.id && o.lessonKey===key && o.status!=="marked")){ S.note = `${s.l.name} already has this lesson and hasn't finished it. Open it under All lessons to change the message, or delete it first.`; render(); return; }
+    const x ={id:uid(), learnerId:s.l.id, lessonKey:key, msg:document.getElementById("t-msg").value.trim(), assignedAt:Date.now(), status:"assigned", ex:{}, pages:[]};
     saveLesson(s.code, x); S.note = `Lesson given to ${s.l.name}. They'll see it on their home screen.`; render();
   }
   if(e.target.id==="linkForm"){
@@ -317,6 +333,12 @@ document.addEventListener("submit", async e=>{
     try{ const d = await famDoc(code).get(); if(!d.exists){ S.note = "No family found with that code. Check it and try again."; render(); return; } }
     catch(err){ S.note = "Couldn't check that code. Check your connection."; render(); return; }
     famRef.collection("links").doc(code).set({label, at:Date.now()}); S.note = "Family linked. Their learners now appear in the student list."; render();
+  }
+  if(e.target.id==="msgForm"){
+    e.preventDefault();
+    const {code,id} = S.tsel || {}, x = findLesson(code,id); if(!x) return;
+    x.msg = document.getElementById("t-editmsg").value.trim(); saveLesson(code, x); S.note = "Message saved."; render();
+    return;
   }
   if(e.target.id==="markForm"){
     e.preventDefault();
