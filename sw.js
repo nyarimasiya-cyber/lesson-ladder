@@ -1,6 +1,6 @@
 /* Offline support: keeps the app and its notes available without internet.
    Change VERSION whenever you update any file so devices pick up the new copy. */
-const VERSION = "lesson-ladder-v42";
+const VERSION = "lesson-ladder-v43";
 const SHELL = ["./","./index.html","./styles.css","./config.js","./content.js","./content-extra.js","./content-grade7.js","./content-grade7-history.js","./content-grade7-maths-a.js","./content-grade7-maths-b.js","./content-grade7-geo.js","./content-grade7-ns-a.js","./content-grade7-ns-b.js","./content-grade7-ns.js","./content-g8-maths.js","./content-g8-ns.js","./content-g8-t4.js","./content-g9-maths.js","./content-g9-ns-a.js","./content-g9-ns-b.js","./content-g89-ss.js","./content-g9-t4.js","./content-g7-eng.js","./content-g7-afr.js","./content-g7-lo.js","./content-g7-ems.js","./content-g7-tech.js","./content-g7-arts.js","./content-g7-his-t4.js","./notes-core.js","./notes-g7-ss.js","./notes-g7-his-a.js","./notes-g7-his-b.js","./notes-g8-his.js","./notes-g9-his.js","./notes-g8-geo.js","./notes-g9-geo.js","./curriculum.js","./lessons-lib.js","./lesson-g7-his.js","./app.js","./teach.js","./writing.js","./manifest.webmanifest",
   "./icons/icon-192.png","./icons/icon-512.png","./icons/apple-touch-icon.png"];
 const LIBS = ["firebase-app-compat.js","firebase-auth-compat.js","firebase-firestore-compat.js"]

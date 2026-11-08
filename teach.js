@@ -34,7 +34,7 @@ const lstatus = x => notSent(x) ? ["Pages uploaded, not submitted","p-bad"] : (L
 /* test time excludes pauses (toilet breaks); pauses are counted so the teacher and parent can see them */
 const pausedNow = x => x.pausedAt ? Date.now() - x.pausedAt : 0;
 const usedMs = x => (x.submittedAt || Date.now()) - x.testStartedAt - (x.pausedMs||0) - pausedNow(x);
-const minsTaken = x => x.testStartedAt && x.submittedAt ? Math.round(usedMs(x)/60000) : null;
+const minsTaken = x => x.testStartedAt && x.submittedAt && x.submittedBy!=="teacher" ? Math.round(usedMs(x)/60000) : null;
 const pauseNote = x => x.pauses ? `paused ${x.pauses} time${x.pauses===1?"":"s"} (${Math.round((x.pausedMs||0)/60000)} min)` : "";
 function praiseFor(pct){ return pct>=80 ? "Excellent work!" : pct>=60 ? "Good work!" : pct>=40 ? "Well tried, keep practising!" : "Good effort. Go over the notes and try again."; }
 
@@ -141,6 +141,23 @@ function compress(file){
   });
 }
 document.addEventListener("change", async e=>{
+  if(e.target.id==="tupload"){
+    const {code,id} = S.tsel || {}, x = findLesson(code,id); if(!x) return;
+    const files = [...e.target.files]; if(!files.length) return;
+    T.busy = true; render(); let added = 0;
+    for(const f of files){
+      try{ const img = await compress(f), pid = `${x.id}_${uid()}`;
+        T.pages[pid] = img;
+        await famDoc(code).collection("pages").doc(pid).set({lessonId:x.id, img, at:Date.now(), by:"teacher"});
+        x.pages = [...(x.pages||[]), pid]; added++;
+      }catch(err){ S.note = "One photo couldn't be added. Try again."; }
+    }
+    if(added){
+      if(!["submitted","marked"].includes(x.status)){ x.status = "submitted"; x.submittedAt = Date.now(); x.submittedBy = "teacher"; }
+      saveLesson(code, x); S.note = `${added} page${added===1?"":"s"} added. The work is handed in and ready to mark.`;
+    }
+    T.busy = false; render(); return;
+  }
   if(e.target.id!=="lupload") return;
   const x = curLesson(); if(!x) return;
   const files = [...e.target.files]; if(!files.length) return;
@@ -236,7 +253,11 @@ function vTMark(){
     <div class="stat"><div class="eyebrow">Pages</div><div class="v">${(x.pages||[]).length}</div></div>
   </div>
   <h2 class="h2s">His written work</h2>
-  ${(x.pages||[]).length?`<div class="pages big">${x.pages.map((p,i)=>`<figure>${pageImg(p,i)}<figcaption>Page ${i+1} · tap to enlarge</figcaption></figure>`).join("")}</div>`:`<p class="muted">No pages uploaded.</p>`}
+  ${(x.pages||[]).length?`<div class="pages big">${x.pages.map((p,i)=>`<figure>${pageImg(p,i)}<figcaption>Page ${i+1} · tap to enlarge · <button class="linkbtn" data-act="t-rmpage" data-p="${p}">Remove</button></figcaption></figure>`).join("")}</div>`:`<p class="muted">No pages uploaded yet.</p>`}
+  ${x.submittedBy==="teacher"?`<p class="muted" style="font-size:14px">You added these pages and handed in the work for ${esc(st?st.l.name:"the student")}.</p>`:""}
+  <p class="muted" style="margin:10px 0 6px">Did ${esc(st?st.l.name:"the student")} send you the photos another way, for example on WhatsApp? Save them to your phone, then add them here. This hands in the work for ${esc(st?st.l.name:"the student")}, and his parent will see it.</p>
+  <label class="btn ghost upl">📷 Add pages he sent me<input type="file" id="tupload" accept="image/*" multiple hidden></label>
+  ${T.busy?`<p class="muted">Uploading…</p>`:""}
   <details class="more"><summary>Memo (answers for marking)</summary><ol class="memo">${L.memo.map(m=>`<li>${esc(m)}</li>`).join("")}</ol></details>
   <div class="row" style="margin:14px 0"><button class="btn" data-act="t-edit">✏️ Edit this lesson</button></div>
   <details class="more"><summary>See the lesson as the student sees it</summary><article class="notes"><p class="muted">${esc(L.intro)}</p>${L.notes}<h2>Worked examples</h2>${L.examples}<h2>Practice</h2><ol>${L.practice.map(q=>`<li>${esc(q.q)}<br><span class="muted">Hint: ${esc(q.h)}</span></li>`).join("")}</ol><h2>Test</h2>${L.testIntro}${lessonTestItems(L).map(t=>t.head?t.head:`<p><b>${t.n}.</b> ${esc(t.q)}</p>`).join("")}</article></details>
@@ -354,6 +375,7 @@ document.addEventListener("click", e=>{
     famDoc(code).collection("lessons").doc(id).delete().then(()=>{ S.tdel = null; S.note = "Lesson deleted."; if(S.view==="tmark") go("teacher"); else render(); })
       .catch(()=>{ S.note = "The lesson wasn't deleted. Check your connection."; render(); });
   }
+  else if(act==="t-rmpage"){ const {code,id} = S.tsel, x = findLesson(code,id), p = b.dataset.p; x.pages = (x.pages||[]).filter(i=>i!==p); saveLesson(code, x); famDoc(code).collection("pages").doc(p).delete().catch(()=>{}); render(); }
   else if(act==="t-unlink"){ famRef.collection("links").doc(b.dataset.c).delete().catch(()=>{}); }
   else if(act==="p-pages"){ S.plopen = b.dataset.id; render(); }
 });
