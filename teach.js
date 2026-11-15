@@ -535,8 +535,9 @@ function vTeacher(){
   if(S.ttpl) return vTEdit(null, {id:"tpl", lessonKey:S.ttpl, custom:tplOf(S.ttpl)});
   if(S.tprev) return vTPreview(S.tprev);
   const studs = allStudents(), lessons = allLessons(), toMark = lessons.filter(o=>o.x.status==="submitted" || notSent(o.x));
-  const opts = studs.map((s,i)=>`<option value="${i}">${esc(s.l.name)} (Grade ${gradeLabel(s.l.grade)}) · ${esc(s.fam)}</option>`).join("");
-  const sel = studs[+(S.tstud||0)];
+  const tsi = Math.min(+(S.tstud||0), Math.max(studs.length-1,0));
+  const opts = studs.map((s,i)=>`<option value="${i}" ${i===tsi?"selected":""}>${esc(s.l.name)} (Grade ${gradeLabel(s.l.grade)}) · ${esc(s.fam)}</option>`).join("");
+  const sel = studs[tsi];
   const lopts = Object.entries(LESSONS).filter(([k,L])=>!sel || +sel.l.grade===L.grade).map(([k,L])=>`<label class="chk"><input type="checkbox" name="t-lesson" value="${k}" ${(S.tgive||[]).includes(k)?"checked":""}><span>${esc(L.title)}<small class="muted">${L.kind?`${L.kind==="mc"?"Multiple choice, marked automatically":"Show your method, you mark it"} · ${L.minutes} min · ${L.outOf} marks`:`Lesson: notes, examples, practice and a ${L.minutes}-min test`}${tplOf(k)?" · <b>edited by you</b>":""}</small><span class="chklinks"><button type="button" class="linkbtn" data-act="t-prev" data-k="${k}">Open</button><button type="button" class="linkbtn" data-act="t-tpl" data-k="${k}">Edit</button></span></span></label>`).join("");
   return `${S.family&&S.family.teacher?"":crumbs([{act:"parent",label:"Parent"},{label:"Teacher"}])}
   <h1 class="pagetitle">Teacher</h1>
@@ -549,6 +550,7 @@ function vTeacher(){
   <h2 class="h2s">Give a lesson</h2>
   ${studs.length?`<form class="form" id="assignForm">
     <label for="t-stud">Student<select id="t-stud">${opts}</select></label>
+    ${sel?`<label for="t-grade" class="muted" style="font-size:14px">${esc(sel.l.name)}'s grade (change it if it's wrong)<select id="t-grade">${[0,1,2,3,4,5,6,7,8,9,10,11,12].map(g=>`<option value="${g}" ${+sel.l.grade===g?"selected":""}>Grade ${gradeLabel(g)}</option>`).join("")}</select></label>`:""}
     <fieldset class="pickl"><legend>Lessons and tests <span class="muted">(tick one or more)</span></legend>${lopts||`<p class="muted">No lessons for this grade yet.</p>`}</fieldset>
     <label for="t-msg">Message to the student (optional)<textarea id="t-msg" rows="2" maxlength="300" placeholder="e.g. Do this before Friday. Remember: neat work and show your method."></textarea></label>
     <div><button class="btn" type="submit" ${lopts?"":"disabled"}>Give to this student</button></div></form>`:`<p class="muted">Add a learner or link a family first.</p>`}
@@ -796,6 +798,11 @@ document.addEventListener("input", e=>{
 document.addEventListener("mousedown", e=>{ if(e.target.closest(".etools button")) e.preventDefault(); });
 document.addEventListener("change", e=>{
   if(e.target.id==="t-stud"){ S.tstud = +e.target.value; render(); }
+  if(e.target.id==="t-grade"){ const st = allStudents()[Math.min(+(S.tstud||0), allStudents().length-1)]; if(!st) return; const g = +e.target.value;
+    const {id:_lid, ...ldata} = st.l; famDoc(st.code).collection("learners").doc(st.l.id).set({...ldata, grade:g})
+      .then(()=>{ S.note = `${st.l.name} is now in Grade ${gradeLabel(g)}. The Grade ${gradeLabel(g)} lessons and tests are listed below.`; render(); })
+      .catch(()=>{ S.note = "The grade didn't save. Check your connection."; render(); });
+    st.l.grade = g; S.tgive = []; render(); }
   if(e.target.id==="rep-from" || e.target.id==="rep-to"){ S.repNote = document.getElementById("rep-note")?.value || S.repNote || ""; if(e.target.value){ if(e.target.id==="rep-from") S.repFrom = e.target.value; else S.repTo = e.target.value; render(); document.getElementById("rep-text")?.scrollIntoView({block:"center"}); } return; }
   if(e.target.dataset && e.target.dataset.wm){ const key = e.target.dataset.wm, r = repOf(e.target.dataset.c, e.target.dataset.l);
     famRef.collection("reports").doc(key).set({phone:r.phone, code:e.target.dataset.c, learnerId:e.target.dataset.l, lastSentAt:r.lastSentAt||null, sent:r.sent||[], withMe:e.target.value}).catch(()=>{});
