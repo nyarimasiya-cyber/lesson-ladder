@@ -391,8 +391,6 @@ function buildReport(code, k, note){
       return Object.values(by).map(g=>`• ${g.sub && g.sub!=="Mixed subjects" && !g.title.startsWith(g.sub) ? `${g.sub}: ` : ""}${g.title}: ${[...new Set(g.parts)].join(", ")}`); };
     const tm = t => new Date(t).toLocaleTimeString("en-ZA",{hour:"2-digit", minute:"2-digit"});
     const span = list => { if(!list.length) return ""; const d0 = new Date(list[0].at).setHours(0,0,0,0), a = Math.min(...list.map(e=>e.start && e.start>=d0 ? e.start : e.at)), z = Math.max(...list.map(e=>e.at)); return tm(a)===tm(z) ? `at ${tm(a)}` : `${tm(a)} to ${tm(z)}`; };
-    const supBlocks = supDays.filter(d=>c[dayKey(d)]).map(d=>{ const de = ev.filter(e=>dayKey(e.at)===dayKey(d)).sort((a,b)=>a.at-b.at);
-      return `👩‍🏫 *${dayName(d)}, with me* (${span(de)})\n${actLines(de).join("\n")}`; });
     const ownEv = ev.filter(e=>!sup(new Date(e.at)));
     const subj = {}; ownEv.forEach(e=>{ const [main, part] = (e.subject||"Other").replace("Mathematics","Maths").split(": "); const x = subj[main] = subj[main] || {d:new Set(), parts:new Set()}; x.d.add(dayKey(e.at)); if(part) x.parts.add(part); });
     const subjLines = Object.entries(subj).sort((a,b)=>b[1].d.size-a[1].d.size).map(([n,x])=>`• ${n}${x.parts.size?` (${[...x.parts].join(", ")})`:""}: ${x.d.size} day${x.d.size===1?"":"s"}`);
@@ -402,6 +400,7 @@ function buildReport(code, k, note){
     const short = x => lessonOf(x).kind ? lessonOf(x).title.split(" · ")[0] : lessonOf(x).title.split(":")[0] + " lesson";
     const doneL = [], waitL = [], goingL = [], notL = [];
     les.forEach(x=>{
+      if(x.submittedAt && inP(x.submittedAt) && sup(new Date(x.submittedAt))) return;
       const L = lessonOf(x), qN = lessonTestItems(L).filter(it=>!it.head && !isRem(it.q)), rightOf = qm => qm ? qN.filter(it=>qm[it.n]===qMax(it.q)).length : null;
       const ic = p => p<PASS?"❌":p<GOAL?"⚠️":"✅", one = (p, qm) => { const rt = rightOf(qm); return `${p}%${p<PASS?" FAIL":""}${rt!=null?` (${rt} of ${qN.length} right)`:""}`; };
       const tries = (x.attempts||[]).filter(a=>inP(a.at)).map(a=>({p:a.pct, qm:a.qmarks}));
@@ -415,6 +414,34 @@ function buildReport(code, k, note){
     /* "Maths Test 2, Maths Test 3" -> "Maths Tests 2, 3" */
     const group = list => { const g = {}, rest = []; list.forEach(t=>{ const m = t.match(/^(.*) Test (\d+)$/); if(m) (g[m[1]] = g[m[1]] || []).push(m[2]); else rest.push(t); });
       return [...Object.entries(g).map(([n,nums])=>nums.length>1 ? `${n} Tests ${nums.join(", ")}` : `${n} Test ${nums[0]}`), ...rest].join("; "); };
+    const scoreTxt = sc => { const m = String(sc||"").match(/(\d+)\s*\/\s*(\d+)/); if(!m || !+m[2]) return ""; const p = Math.round(m[1]/m[2]*100); return `${m[1]}/${m[2]} (${p}%) ${p<PASS?"❌":p<GOAL?"⚠️":"✅"}`; };
+    const lessonSummary = d => {
+      const de = ev.filter(e=>dayKey(e.at)===dayKey(d) && e.kind!=="lesson").sort((a,b)=>a.at-b.at);
+      const tests = S.lessons.filter(x=>x.learnerId===k.id && LESSONS[x.lessonKey] && x.submittedAt && dayKey(x.submittedAt)===dayKey(d));
+      const topics = [], subs = [];
+      de.forEach(e=>{ if(e.kind==="review" || e.kind==="mock") return; const t = e.title || e.label; if(!topics.includes(t)) topics.push(t); const sb = (e.subject||"").replace("Mathematics","Maths").replace("Social Sciences: ",""); if(sb && !subs.includes(sb)) subs.push(sb); });
+      tests.forEach(x=>{ const L = lessonOf(x); let sb = sname(L.subject, k.grade).replace("Mathematics","Maths");
+        if(sb==="Social Sciences" && /^History/.test(L.title)) sb = "History";
+        if(sb==="Social Sciences" && subs.some(v=>v==="History" || v==="Geography")) return;
+        if(sb && !subs.includes(sb)) subs.push(sb); });
+      const out = [];
+      if(subs.length) out.push(`We worked on ${subs.join(" and ")}.`);
+      topics.forEach(t=>{ const kinds = new Set(de.filter(e=>(e.title||e.label)===t).map(e=>e.kind)), did = [];
+        if(kinds.has("notes")) did.push("read the notes"); if(kinds.has("practice")) did.push("did the practice questions");
+        if(kinds.has("topic")) did.push("wrote the topic test"); if(kinds.has("chapter")) did.push("wrote the chapter test");
+        if(did.length) out.push(`• ${t}: ${did.join(", ")}`); });
+      const marks = [];
+      de.filter(e=>["topic","chapter","mock","review"].includes(e.kind)).forEach(e=>{ const sc = scoreTxt(e.score); if(sc) marks.push(`• ${({topic:"Topic test",chapter:"Chapter test",mock:"Mock exam",review:"Weak-spot practice"})[e.kind]}${e.kind==="review"?"":` (${e.title})`}: ${sc}`); });
+      tests.forEach(x=>{ const L = lessonOf(x); if(x.status==="marked"){ const p = lessonPct(x); marks.push(`• ${short(x)}: ${x.mark}/${L.outOf} (${p}%) ${p<PASS?"❌ Fail":p<GOAL?"⚠️ Pass":"✅"}`); } else marks.push(`• ${short(x)}: done, I'm still marking it`); });
+      if(marks.length) out.push(`*His marks*`, ...marks);
+      return {has: de.length || tests.length, span: span(de.length ? de : tests.map(x=>({at:x.submittedAt, start:x.testStartedAt}))), lines: out};
+    };
+    const supBlocks = supDays.map(d=>({d, s:lessonSummary(d)})).filter(o=>o.s.has).map(({d,s})=>`👩‍🏫 *Lesson with me: ${dayName(d)}* (${s.span})\n${s.lines.join("\n")}`);
+    if(periodDays===1 && sup(days[0])){
+      const s1 = lessonSummary(days[0]);
+      return [`*${k.name}: lesson with me on ${dayName(days[0])}*`, s1.has ? `👩‍🏫 ${s1.span}` : null, ``, ...(s1.has ? s1.lines : ["We did not have a lesson on this day."]),
+        note && note.trim() ? `\n*Note:* ${note.trim()}` : null, ``, `Details: ${location.origin}${location.pathname.replace(/index\.html$/,"")}`].filter(l=>l!==null).join("\n").replace(/\n{3,}/g,"\n\n");
+    }
     if(periodDays===1){
       /* one day: only what was done, nothing about what wasn't */
       const d = days[0], mine = ev.filter(e=>e.kind!=="lesson").sort((a,b)=>a.at-b.at), link = `${location.origin}${location.pathname.replace(/index\.html$/,"")}`;
