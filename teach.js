@@ -381,10 +381,20 @@ function buildReport(code, k, note){
     const share = ownDays.length ? active/ownDays.length : 0, aim = Math.max(1, Math.round(ownDays.length*5/6));
     const verdict = share>=2/3 ? "✅ *Practising regularly*" : share>=1/3 ? "⚠️ *Some practice, not enough*" : active ? "❌ *Very little practice*" : "❌ *No practice at all*";
     const mk = d => sup(d) ? (c[dayKey(d)]?"👩‍🏫":"❌") : c[dayKey(d)]?"✅":"❌";
-    const grid = periodDays<=14 ? days.map(d=>`${d.toLocaleDateString("en-ZA",{weekday:"short"})} ${mk(d)}`).join(" ")
+    const grid = periodDays<=14 ? days.map(d=>`${d.toLocaleDateString("en-ZA",{weekday:"short"})}\u00a0${mk(d)}`).join("  ")
       : (()=>{ const w = []; for(let i=0;i<days.length;i+=7){ const o = days.slice(i,i+7).filter(d=>!sup(d)); w.push(`${o.filter(d=>c[dayKey(d)]).length}/${o.length}`); } return `Days on his own, week by week: ${w.join(" · ")}`; })();
     /* subjects worked on in the period */
-    const subj = {}; ev.forEach(e=>{ const [main, part] = (e.subject||"Other").replace("Mathematics","Maths").split(": "); const x = subj[main] = subj[main] || {d:new Set(), parts:new Set()}; x.d.add(dayKey(e.at)); if(part) x.parts.add(part); });
+    /* what he did, one line per topic, with how he did: "• History: The Great Trek: notes read, test 7/10" */
+    const ACT = {notes:"notes read", practice:"practice", topic:"test", chapter:"chapter test", review:"weak-spot practice", mock:"mock exam", lesson:"handed in"};
+    const actLines = evs => { const by = {}; evs.forEach(e=>{ const key = e.title || e.label; const g = by[key] = by[key] || {sub:(e.subject||"").replace("Mathematics","Maths").replace("Social Sciences: ",""), title:e.title||e.label, parts:[]};
+        const sc = e.score ? ` ${String(e.score).replace(" first try"," first try")}` : ""; g.parts.push((ACT[e.kind]||e.label.toLowerCase()) + sc); });
+      return Object.values(by).map(g=>`• ${g.sub && g.sub!=="Mixed subjects" && !g.title.startsWith(g.sub) ? `${g.sub}: ` : ""}${g.title}: ${[...new Set(g.parts)].join(", ")}`); };
+    const tm = t => new Date(t).toLocaleTimeString("en-ZA",{hour:"2-digit", minute:"2-digit"});
+    const span = list => { if(!list.length) return ""; const d0 = new Date(list[0].at).setHours(0,0,0,0), a = Math.min(...list.map(e=>e.start && e.start>=d0 ? e.start : e.at)), z = Math.max(...list.map(e=>e.at)); return tm(a)===tm(z) ? `at ${tm(a)}` : `${tm(a)} to ${tm(z)}`; };
+    const supBlocks = supDays.filter(d=>c[dayKey(d)]).map(d=>{ const de = ev.filter(e=>dayKey(e.at)===dayKey(d)).sort((a,b)=>a.at-b.at);
+      return `👩‍🏫 *${dayName(d)}, with me* (${span(de)})\n${actLines(de).join("\n")}`; });
+    const ownEv = ev.filter(e=>!sup(new Date(e.at)));
+    const subj = {}; ownEv.forEach(e=>{ const [main, part] = (e.subject||"Other").replace("Mathematics","Maths").split(": "); const x = subj[main] = subj[main] || {d:new Set(), parts:new Set()}; x.d.add(dayKey(e.at)); if(part) x.parts.add(part); });
     const subjLines = Object.entries(subj).sort((a,b)=>b[1].d.size-a[1].d.size).map(([n,x])=>`• ${n}${x.parts.size?` (${[...x.parts].join(", ")})`:""}: ${x.d.size} day${x.d.size===1?"":"s"}`);
     /* teacher's work, as it stood at the end of the period */
     const at = (t) => t && t <= t1;
@@ -408,9 +418,8 @@ function buildReport(code, k, note){
     if(periodDays===1){
       /* one day: only what was done, nothing about what wasn't */
       const d = days[0], mine = ev.filter(e=>e.kind!=="lesson").sort((a,b)=>a.at-b.at), link = `${location.origin}${location.pathname.replace(/index\.html$/,"")}`;
-      const tm = t => new Date(t).toLocaleTimeString("en-ZA",{hour:"2-digit", minute:"2-digit"});
-      const bySub = {}; mine.forEach(e=>{ const sub = (e.subject||"Other").replace("Mathematics","Maths").replace("Social Sciences: ",""); (bySub[sub] = bySub[sub] || []).push(`${e.label}${e.title?`: ${e.title}`:""}${e.score?` (${e.score})`:""}`); });
-      const subLines = Object.entries(bySub).map(([n,list])=>`• *${n}*: ${[...new Set(list)].join("; ")}`);
+      const subLines = actLines(mine);
+
       const all = ev.slice().sort((a,b)=>a.at-b.at);
       const dStart = new Date(d).setHours(0,0,0,0), first = all.length ? Math.min(...all.map(e=>e.start && e.start>=dStart ? e.start : e.at)) : 0, lastT = all.length ? all[all.length-1].at : 0;
       return [
@@ -444,8 +453,9 @@ supDays.length ? `${wd}s with me: ${supDone} of ${supDays.length}${supDone?" �
 grid,
 endsToday && agoN!=null && agoN>1 ? `Last worked on his own ${agoN} days ago.` : endsToday && agoN==null ? `He has not worked on his own yet.` : null,
 ``,
-`*Subjects*`,
-subjLines.length ? subjLines.join("\n") : `None. No work done in this period.`,
+supBlocks.length ? `*Lessons with me*\n${supBlocks.join("\n\n")}\n` : null,
+wd ? `*On his own, he worked on*` : `*Subjects*`,
+subjLines.length ? subjLines.join("\n") : (wd ? `Nothing. He did not work on his own in this period.` : `None. No work done in this period.`),
 ``,
 (doneL.length || waitL.length || goingL.length || notL.length) ? `*Tests from me*` : null,
 ...doneL,
