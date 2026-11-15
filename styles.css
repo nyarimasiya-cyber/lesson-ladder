@@ -428,3 +428,4 @@ i.h1{background:var(--h1)!important} i.h2{background:var(--h2)!important} i.h3{b
 .repcard.due{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad-soft)}
 .repcard textarea{width:100%;box-sizing:border-box;font:inherit;font-size:15px;line-height:1.4;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink,inherit)}
 .repcard .form{max-width:none;padding:0;border:0;background:none}
+.wmsel select{display:block;width:100%;margin-top:4px;min-height:44px;font:inherit;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:var(--surface);color:var(--ink,inherit)}

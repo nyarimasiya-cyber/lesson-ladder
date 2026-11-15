@@ -357,11 +357,16 @@ function buildReport(code, k, note){
     const from = new Date(since); from.setHours(0,0,0,0);
     const periodDays = Math.round((new Date().setHours(0,0,0,0) - from.getTime())/86400000) + 1;
     const ev = eventsFor(k.id).filter(e=>e.at >= from.getTime());
-    const c = dayCounts(k.id), active = daysBack(periodDays).filter(d=>c[dayKey(d)]).length, v = effortVerdict(k.id);
-    const week = daysBack(7).map(d=>`${d.toLocaleDateString("en-ZA",{weekday:"short"})} ${c[dayKey(d)]?"✅":"❌"}`).join("  ");
+    const c = dayCounts(k.id), v = effortVerdict(k.id), wm = r.withMe;   /* wm: weekday he spends with the teacher, who makes him work */
+    const sup = d => wm!=null && wm!=="" && d.getDay()===+wm, wdName = wm!=null && wm!=="" ? ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][+wm] : "";
+    const ownDays = daysBack(periodDays).filter(d=>!sup(d)), active = ownDays.filter(d=>c[dayKey(d)]).length;
+    const supDays = daysBack(periodDays).filter(sup), supDone = supDays.filter(d=>c[dayKey(d)]).length;
+    const own14 = daysBack(14).filter(d=>!sup(d)), own14n = own14.filter(d=>c[dayKey(d)]).length, aim = Math.round(own14.length*5/6);
+    const ov = wdName ? (own14n>=Math.round(own14.length*2/3) ? ["good","Practising regularly on his own"] : own14n>=Math.round(own14.length/3) ? ["warn","Some practice on his own"] : own14n>=1 ? ["bad","Very little practice on his own"] : ["bad","No practice on his own"]) : [v.cls, v.head];
+    const week = daysBack(7).map(d=>`${d.toLocaleDateString("en-ZA",{weekday:"short"})} ${sup(d)?(c[dayKey(d)]?"👩‍🏫":"❌"):c[dayKey(d)]?"✅":"❌"}`).join("  ");
     const byDay = {}; ev.forEach(e=>{ const key = dayKey(e.at); (byDay[key] = byDay[key] || []).push(e); });
     const did = Object.keys(byDay).sort().map(key=>{ const evs = byDay[key], sum = daySummary(evs), les = evs.filter(e=>e.kind==="lesson");
-      return `• ${dayName(keyDate(key))}: ${[sum, ...les.map(e=>`handed in ${e.title.split(" · ")[0]}${e.score?` (${e.score})`:""}`)].filter(Boolean).join(" · ")}`; });
+      return `• ${dayName(keyDate(key))}${sup(keyDate(key))?" (with me)":""}: ${[sum, ...les.map(e=>`handed in ${e.title.split(" · ")[0]}${e.score?` (${e.score})`:""}`)].filter(Boolean).join(" · ")}`; });
     const les = S.lessons.filter(x=>x.learnerId===k.id && LESSONS[x.lessonKey]).sort((a,b)=>a.assignedAt-b.assignedAt);
     const short = x => lessonOf(x).title.split(" · ")[0] + (lessonOf(x).kind ? "" : " lesson");
     const marked = les.filter(x=>x.status==="marked").map(x=>{ const p = lessonPct(x), tag = p<PASS?"❌ FAIL":p<GOAL?"⚠️ Pass, below the 80% goal":"✅ Goal reached";
@@ -369,19 +374,27 @@ function buildReport(code, k, note){
     const waiting = les.filter(x=>x.status==="submitted").map(x=>`• ${short(x)}: handed in, waiting for marking`);
     const going = les.filter(x=>x.status==="started" || x.status==="redo" || notSent(x)).map(x=>`• ${short(x)}: ${x.status==="redo"?"sent back for corrections, not redone yet":"started but not handed in"}`);
     const notStarted = les.filter(x=>x.status==="assigned" && !notSent(x));
-    const lastAgo = v.ago==null ? "never" : v.ago===0 ? "today" : v.ago===1 ? "yesterday" : `${v.ago} days ago`;
+    const lastOwn = eventsFor(k.id).find(e=>!sup(new Date(e.at))), agoN = lastOwn ? Math.floor((new Date().setHours(0,0,0,0) - new Date(lastOwn.at).setHours(0,0,0,0))/86400000) : null;
+    const lastAgo = agoN==null ? "never" : agoN===0 ? "today" : agoN===1 ? "yesterday" : `${agoN} days ago`;
     const fails = les.filter(x=>x.status==="marked" && lessonPct(x)<PASS).length;
-    const advice = v.cls==="good" && !notStarted.length && !fails ? `${k.name} is working well. Please encourage him to keep going: regular practice is what moves marks.`
-      : `${k.name} needs to use the app every day for at least 30 minutes${notStarted.length?`, start the ${notStarted.length} test${notStarted.length===1?"":"s"} he hasn't opened`:""}${fails?`, and retake the test${fails===1?"":"s"} he failed`:""}. The goal is 80% this term, and marks will not improve without practice. Please check that he does this.`;
+    const advice = ov[0]==="good" && !notStarted.length && !fails ? `${k.name} is working well${wdName?" on his own as well as with me":""}. Please encourage him to keep going: regular practice is what moves marks.`
+      : `${wdName && ov[0]!=="good" ? `${k.name} only works properly on ${wdName}s, when he is with me and I make him do it. That is not enough to pass. ` : ""}${k.name} needs to use the app every day at home for at least 30 minutes${notStarted.length?`, start the ${notStarted.length} test${notStarted.length===1?"":"s"} he hasn't opened`:""}${fails?`, and retake the test${fails===1?"":"s"} he failed`:""}. The goal is 80% this term, and marks will not improve without practice. Please check that he does this.`;
     return [
 `*Lesson Ladder: progress report for ${k.name}* (Grade ${gradeLabel(k.grade)})`,
 `Period: ${dayName(from)} to ${dayName(new Date())} (${periodDays} days)`,
 ``,
-`*Practice: ${v.cls==="good"?"✅":v.cls==="warn"?"⚠️":"❌"} ${v.head}*`,
+`*Practice: ${ov[0]==="good"?"✅":ov[0]==="warn"?"⚠️":"❌"} ${ov[1]}*`,
+...(wdName ? [
+`${wdName}s he is with me and I make him work, so ${wdName}s are not counted as his own practice.`,
+`Days he worked *on his own* at home in this period: *${active} of ${ownDays.length}*`,
+supDays.length ? `${wdName} sessions with me: ${supDone} of ${supDays.length}` : null,
+`On his own in the last 2 weeks: ${own14n} of ${own14.length} days (we aim for at least ${aim})`
+] : [
 `Days he used the app in this period: *${active} of ${periodDays}*`,
-`Days in the last 2 weeks: ${v.last14} of 14 (we aim for at least 10)`,
-`Last activity: ${lastAgo}`,
+`Days in the last 2 weeks: ${v.last14} of 14 (we aim for at least 10)`]),
+wdName ? `Last time he worked on his own: *${lastAgo}*` : `Last activity: ${lastAgo}`,
 `This week: ${week}`,
+wdName ? `(✅ worked on his own · 👩‍🏫 worked with me · ❌ nothing)` : null,
 ``,
 `*What he did*`,
 did.length ? did.join("\n") : `Nothing. He did not open his work in this period.`,
@@ -407,6 +420,7 @@ function reportsSection(){
     return `<div class="tcard static repcard ${due?"due":""}"><span class="meta"><b>${esc(s.l.name)}</b>${due?`<span class="pill p-bad">Report due today</span>`:r.lastSentAt?`<span class="muted" style="font-size:13px">Last sent ${fmtDate(r.lastSentAt)}</span>`:""}</span>
       ${r.phone && !S.repEditPhone?.[key] ? `<span class="muted" style="font-size:14px">Parent's WhatsApp: +${esc(r.phone)} · <button class="linkbtn" data-act="t-repphone" data-k="${key}">Change</button></span>`
         : `<form class="form" data-repform="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}"><label>Parent's WhatsApp number, with country code<input name="phone" inputmode="tel" placeholder="e.g. +27 82 123 4567" value="${r.phone?"+"+esc(r.phone):""}"></label><div><button class="btn ghost" type="submit">Save number</button></div></form>`}
+      ${r.phone ? `<label class="muted wmsel" style="font-size:14px">Day ${esc(s.l.name)} is with you (you make him work, so it isn't counted as his own practice)<select data-wm="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}"><option value="">None</option>${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((d,i)=>`<option value="${i}" ${r.withMe!=null&&r.withMe!==""&&+r.withMe===i?"selected":""}>${d}</option>`).join("")}</select></label>` : ""}
       ${r.phone ? (open ? `<label class="muted" style="font-size:14px">Add a note for the parent (optional)<textarea id="rep-note" rows="2" maxlength="400" placeholder="e.g. He did not open the app at all this week.">${esc(S.repNote||"")}</textarea></label>
         <button class="linkbtn" data-act="t-repbuild" data-k="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}">Add note to the report</button>
         <label class="muted" style="font-size:14px">The report (you can edit it before sending)<textarea id="rep-text" rows="18">${esc(buildReport(s.code, s.l, S.repNote))}</textarea></label>
@@ -582,7 +596,7 @@ document.addEventListener("click", e=>{
   else if(act==="t-repsend"){ const r = repOf(b.dataset.c, b.dataset.l), text = document.getElementById("rep-text").value;
     if(!r.phone) return;
     window.open(`https://wa.me/${r.phone}?text=${encodeURIComponent(text)}`, "_blank");
-    famRef.collection("reports").doc(b.dataset.k).set({phone:r.phone, code:b.dataset.c, learnerId:b.dataset.l, lastSentAt:Date.now(), sent:[...(r.sent||[]).slice(-20), Date.now()]}).catch(()=>{});
+    famRef.collection("reports").doc(b.dataset.k).set({phone:r.phone, withMe:r.withMe??"", code:b.dataset.c, learnerId:b.dataset.l, lastSentAt:Date.now(), sent:[...(r.sent||[]).slice(-20), Date.now()]}).catch(()=>{});
     S.trep = null; S.note = "WhatsApp opened with the report. Press send in WhatsApp."; render(); }
   else if(act==="l-retake"){ const x = curLesson(), L = lessonOf(x); if(!x || x.status!=="marked") return;
     x.attempts = [...(x.attempts||[]), {mark:x.mark, outOf:L.outOf, pct:Math.round(x.mark/L.outOf*100), at:x.markedAt||Date.now(), pauses:x.pauses||0}];
@@ -631,7 +645,12 @@ document.addEventListener("input", e=>{
     const s = document.getElementById("lsaved"); if(s) s.textContent = `Saved ✔ at ${new Date().toTimeString().slice(0,5)}`; }, 900);
 });
 document.addEventListener("mousedown", e=>{ if(e.target.closest(".etools button")) e.preventDefault(); });
-document.addEventListener("change", e=>{ if(e.target.id==="t-stud"){ S.tstud = +e.target.value; render(); } });
+document.addEventListener("change", e=>{
+  if(e.target.id==="t-stud"){ S.tstud = +e.target.value; render(); }
+  if(e.target.dataset && e.target.dataset.wm){ const key = e.target.dataset.wm, r = repOf(e.target.dataset.c, e.target.dataset.l);
+    famRef.collection("reports").doc(key).set({phone:r.phone, code:e.target.dataset.c, learnerId:e.target.dataset.l, lastSentAt:r.lastSentAt||null, sent:r.sent||[], withMe:e.target.value}).catch(()=>{});
+    S.note = e.target.value==="" ? "Saved." : `Saved. ${["Sundays","Mondays","Tuesdays","Wednesdays","Thursdays","Fridays","Saturdays"][+e.target.value]} are now shown as days with you, separate from his own practice.`; render(); }
+});
 document.addEventListener("submit", async e=>{
   if(e.target.id==="tauthForm"){
     e.preventDefault();
@@ -686,7 +705,7 @@ document.addEventListener("submit", async e=>{
     const key = e.target.dataset.repform, phone = cleanPhone(e.target.querySelector("[name=phone]").value);
     if(phone.length < 9 || phone.startsWith("0")){ S.note = "Enter the full number with the country code, for example +27 82 123 4567 or +44 7700 900123."; render(); return; }
     const r = repOf(e.target.dataset.c, e.target.dataset.l);
-    famRef.collection("reports").doc(key).set({lastSentAt:r.lastSentAt||null, sent:r.sent||[], phone, code:e.target.dataset.c, learnerId:e.target.dataset.l}).catch(()=>{ S.note = "The number didn't save. Check your connection."; render(); });
+    famRef.collection("reports").doc(key).set({lastSentAt:r.lastSentAt||null, sent:r.sent||[], withMe:r.withMe??"", phone, code:e.target.dataset.c, learnerId:e.target.dataset.l}).catch(()=>{ S.note = "The number didn't save. Check your connection."; render(); });
     S.repEditPhone = {...(S.repEditPhone||{}), [key]:false}; S.note = "Number saved."; render(); return;
   }
   if(e.target.id==="msgForm"){
