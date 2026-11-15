@@ -340,32 +340,36 @@ function teachView(code, lid){
 }
 
 /* ---------- progress reports to parents (sent by WhatsApp from the teacher's phone) ---------- */
-const REPORT_DAYS = [0, 4], REPORT_HOUR = 15.5;   // Sunday and Thursday, from 15:30
 const repKey = (code, lid) => `${code}_${lid}`;
 const repOf = (code, lid) => (S.reports||[]).find(r=>r.id===repKey(code, lid)) || {};
 const cleanPhone = p => String(p||"").replace(/[^0-9]/g,"");
 const dayName = d => d.toLocaleDateString("en-ZA",{weekday:"short", day:"numeric", month:"short"});
+const isoDay = d => dayKey(d.getTime ? d.getTime() : d);
 function famOf(code){ return code===S.code ? {learners:S.learners, attempts:S.attempts, reads:S.reads, lessons:S.lessons} : T.fams[code]; }
-function reportDue(code, lid){
-  const now = new Date(), r = repOf(code, lid);
-  if(!REPORT_DAYS.includes(now.getDay()) || now.getHours() + now.getMinutes()/60 < REPORT_HOUR) return false;
-  return !(r.lastSentAt && new Date(r.lastSentAt).toDateString()===now.toDateString());
+function daysBetween(from, to){ const out = [], d = new Date(from); d.setHours(12,0,0,0); const end = new Date(to); end.setHours(12,0,0,0); while(d<=end && out.length<400){ out.push(new Date(d)); d.setDate(d.getDate()+1); } return out; }
+/* the report period the teacher picked; by default, since the last report (or the last 7 days) up to today */
+function repRange(code, lid){
+  const r = repOf(code, lid), today = new Date();
+  const defFrom = r.lastSentAt && Date.now() - r.lastSentAt < 31*86400000 ? new Date(r.lastSentAt) : new Date(Date.now() - 6*86400000);
+  const from = S.repFrom ? keyDate(S.repFrom) : defFrom, to = S.repTo ? keyDate(S.repTo) : today;
+  return from <= to ? [from, to] : [to, from];
 }
 function buildReport(code, k, note){
   const f = famOf(code); if(!f) return "";
   return withFam(f, ()=>{
-    const r = repOf(code, k.id), now = Date.now();
-    const since = r.lastSentAt && now - r.lastSentAt < 14*86400000 && now - r.lastSentAt > 2*86400000 ? r.lastSentAt : now - 7*86400000;
-    const from = new Date(since); from.setHours(0,0,0,0);
-    const periodDays = Math.round((new Date().setHours(0,0,0,0) - from.getTime())/86400000) + 1;
-    const ev = eventsFor(k.id).filter(e=>e.at >= from.getTime());
-    const c = dayCounts(k.id), v = effortVerdict(k.id), wm = r.withMe;   /* wm: weekday he spends with the teacher, who makes him work */
+    const r = repOf(code, k.id), [from, to] = repRange(code, k.id), toEnd = new Date(to); toEnd.setHours(23,59,59,999);
+    const days = daysBetween(from, to), periodDays = days.length;
+    const ev = eventsFor(k.id).filter(e=>e.at >= new Date(from).setHours(0,0,0,0) && e.at <= toEnd.getTime());
+    const c = dayCounts(k.id), wm = r.withMe;   /* wm: weekday he spends with the teacher, who makes him work */
     const sup = d => wm!=null && wm!=="" && d.getDay()===+wm, wdName = wm!=null && wm!=="" ? ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][+wm] : "";
-    const ownDays = daysBack(periodDays).filter(d=>!sup(d)), active = ownDays.filter(d=>c[dayKey(d)]).length;
-    const supDays = daysBack(periodDays).filter(sup), supDone = supDays.filter(d=>c[dayKey(d)]).length;
-    const own14 = daysBack(14).filter(d=>!sup(d)), own14n = own14.filter(d=>c[dayKey(d)]).length, aim = Math.round(own14.length*5/6);
-    const ov = wdName ? (own14n>=Math.round(own14.length*2/3) ? ["good","Practising regularly on his own"] : own14n>=Math.round(own14.length/3) ? ["warn","Some practice on his own"] : own14n>=1 ? ["bad","Very little practice on his own"] : ["bad","No practice on his own"]) : [v.cls, v.head];
-    const week = daysBack(7).map(d=>`${d.toLocaleDateString("en-ZA",{weekday:"short"})} ${sup(d)?(c[dayKey(d)]?"👩‍🏫":"❌"):c[dayKey(d)]?"✅":"❌"}`).join("  ");
+    const ownDays = days.filter(d=>!sup(d)), active = ownDays.filter(d=>c[dayKey(d)]).length;
+    const supDays = days.filter(sup), supDone = supDays.filter(d=>c[dayKey(d)]).length;
+    const share = ownDays.length ? active/ownDays.length : 0, aim = Math.max(1, Math.round(ownDays.length*5/6));
+    const own = wdName ? " on his own" : "";
+    const ov = share>=2/3 ? ["good",`Practising regularly${own}`] : share>=1/3 ? ["warn",`Some practice${own}`] : active ? ["bad",`Very little practice${own}`] : ["bad",`No practice${own}`];
+    const mark = d => sup(d) ? (c[dayKey(d)]?"👩‍🏫":"❌") : c[dayKey(d)]?"✅":"❌";
+    const grid = periodDays<=14 ? days.map(d=>`${d.toLocaleDateString("en-ZA",{weekday:"short", day:"numeric"})} ${mark(d)}`).join("  ")
+      : (()=>{ const wk = []; for(let i=0;i<days.length;i+=7){ const part = days.slice(i,i+7), o = part.filter(d=>!sup(d)); wk.push(`• Week from ${dayName(part[0])}: ${o.filter(d=>c[dayKey(d)]).length} of ${o.length} days${wdName?` on his own${part.some(sup)?`, ${part.filter(sup).some(d=>c[dayKey(d)])?"worked":"did not work"} with me`:""}`:""}`); } return "\n"+wk.join("\n"); })();
     const byDay = {}; ev.forEach(e=>{ const key = dayKey(e.at); (byDay[key] = byDay[key] || []).push(e); });
     const did = Object.keys(byDay).sort().map(key=>{ const evs = byDay[key], sum = daySummary(evs), les = evs.filter(e=>e.kind==="lesson");
       return `• ${dayName(keyDate(key))}${sup(keyDate(key))?" (with me)":""}: ${[sum, ...les.map(e=>`handed in ${e.title.split(" · ")[0]}${e.score?` (${e.score})`:""}`)].filter(Boolean).join(" · ")}`; });
@@ -383,25 +387,23 @@ function buildReport(code, k, note){
       : `${wdName && ov[0]!=="good" ? `${k.name} only works properly on ${wdName}s, when he is with me and I make him do it. That is not enough to pass. ` : ""}${k.name} needs to use the app every day at home for at least 30 minutes${notStarted.length?`, start the ${notStarted.length} test${notStarted.length===1?"":"s"} he hasn't opened`:""}${fails?`, and retake the test${fails===1?"":"s"} he failed`:""}. The goal is 80% this term, and marks will not improve without practice. Please check that he does this.`;
     return [
 `*Lesson Ladder: progress report for ${k.name}* (Grade ${gradeLabel(k.grade)})`,
-`Period: ${dayName(from)} to ${dayName(new Date())} (${periodDays} days)`,
+`Period: ${dayName(from)} to ${dayName(to)} (${periodDays} day${periodDays===1?"":"s"})`,
 ``,
 `*Practice: ${ov[0]==="good"?"✅":ov[0]==="warn"?"⚠️":"❌"} ${ov[1]}*`,
 ...(wdName ? [
 `${wdName}s he is with me and I make him work, so ${wdName}s are not counted as his own practice.`,
-`Days he worked *on his own* at home in this period: *${active} of ${ownDays.length}*`,
-supDays.length ? `${wdName} sessions with me: ${supDone} of ${supDays.length}` : null,
-`On his own in the last 2 weeks: ${own14n} of ${own14.length} days (we aim for at least ${aim})`
+`Days he worked *on his own* at home: *${active} of ${ownDays.length}* (we aim for at least ${aim})`,
+supDays.length ? `${wdName} sessions with me: ${supDone} of ${supDays.length}` : null
 ] : [
-`Days he used the app in this period: *${active} of ${periodDays}*`,
-`Days in the last 2 weeks: ${v.last14} of 14 (we aim for at least 10)`]),
+`Days he used the app: *${active} of ${periodDays}* (we aim for at least ${aim})`]),
 wdName ? `Last time he worked on his own: *${lastAgo}*` : `Last activity: ${lastAgo}`,
-`This week: ${week}`,
+`Day by day: ${grid}`,
 wdName ? `(✅ worked on his own · 👩‍🏫 worked with me · ❌ nothing)` : null,
 ``,
 `*What he did*`,
 did.length ? did.join("\n") : `Nothing. He did not open his work in this period.`,
 ``,
-`*Tests and lessons from his teacher*`,
+`*Tests and lessons from his teacher (as of today)*`,
 ...(marked.length ? marked : []),
 ...waiting, ...going,
 notStarted.length ? `🚫 *Not started yet (${notStarted.length}):* ${notStarted.map(short).join(", ")}` : (les.length ? "All work given has been started." : "No tests or lessons given yet."),
@@ -417,23 +419,21 @@ advice,
 function reportsSection(){
   const studs = allStudents(); if(!studs.length) return "";
   return `<h2 class="h2s">Progress reports to parents</h2>
-  <p class="muted" style="margin:0 0 10px">Every Sunday and Thursday from 15:30 the app reminds you to send each parent a report on WhatsApp. It shows how many days their child practised, what they did, and which tests they haven't started.</p>
-  <div class="topiclist">${studs.map(s=>{ const r = repOf(s.code, s.l.id), key = repKey(s.code, s.l.id), open = S.trep===key, due = r.phone && reportDue(s.code, s.l.id);
+  <p class="muted" style="margin:0 0 10px">Send a parent a report whenever you like, for any dates you choose. It shows how many days their child practised, what they did each day, their marks, and which tests they haven't started.</p>
+  <div class="topiclist">${studs.map(s=>{ const r = repOf(s.code, s.l.id), key = repKey(s.code, s.l.id), open = S.trep===key, due = false, [rf, rt] = repRange(s.code, s.l.id);
     return `<div class="tcard static repcard ${due?"due":""}"><span class="meta"><b>${esc(s.l.name)}</b>${due?`<span class="pill p-bad">Report due today</span>`:r.lastSentAt?`<span class="muted" style="font-size:13px">Last sent ${fmtDate(r.lastSentAt)}</span>`:""}</span>
       ${r.phone && !S.repEditPhone?.[key] ? `<span class="muted" style="font-size:14px">Parent's WhatsApp: +${esc(r.phone)} · <button class="linkbtn" data-act="t-repphone" data-k="${key}">Change</button></span>`
         : `<form class="form" data-repform="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}"><label>Parent's WhatsApp number, with country code<input name="phone" inputmode="tel" placeholder="e.g. +27 82 123 4567" value="${r.phone?"+"+esc(r.phone):""}"></label><div><button class="btn ghost" type="submit">Save number</button></div></form>`}
       ${r.phone ? `<label class="muted wmsel" style="font-size:14px">Day ${esc(s.l.name)} is with you (you make him work, so it isn't counted as his own practice)<select data-wm="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}"><option value="">None</option>${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((d,i)=>`<option value="${i}" ${r.withMe!=null&&r.withMe!==""&&+r.withMe===i?"selected":""}>${d}</option>`).join("")}</select></label>` : ""}
-      ${r.phone ? (open ? `<label class="muted" style="font-size:14px">Add a note for the parent (optional)<textarea id="rep-note" rows="2" maxlength="400" placeholder="e.g. He did not open the app at all this week.">${esc(S.repNote||"")}</textarea></label>
+      ${r.phone ? (open ? `<div class="repdates"><label>From<input type="date" id="rep-from" value="${isoDay(rf)}" max="${isoDay(new Date())}"></label><label>To<input type="date" id="rep-to" value="${isoDay(rt)}" max="${isoDay(new Date())}"></label></div>
+        <div class="row repquick" style="flex-wrap:wrap;gap:6px">${[["7","Last 7 days"],["14","Last 2 weeks"],["month","This month"],["term","Last 3 months"]].concat(r.lastSentAt?[["last","Since last report"]]:[]).map(([v,lab])=>`<button class="chip" data-act="t-repq" data-v="${v}" data-k="${key}">${lab}</button>`).join("")}</div>
+        <label class="muted" style="font-size:14px">Add a note for the parent (optional)<textarea id="rep-note" rows="2" maxlength="400" placeholder="e.g. He did not open the app at all this week.">${esc(S.repNote||"")}</textarea></label>
         <button class="linkbtn" data-act="t-repbuild" data-k="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}">Add note to the report</button>
         <label class="muted" style="font-size:14px">The report (you can edit it before sending)<textarea id="rep-text" rows="18">${esc(buildReport(s.code, s.l, S.repNote))}</textarea></label>
         <div class="row" style="flex-wrap:wrap;gap:8px"><button class="btn" data-act="t-repsend" data-k="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}">Send on WhatsApp</button><button class="btn ghost" data-act="t-repclose">Close</button></div>
         <p class="muted" style="font-size:13px;margin:0">WhatsApp opens with the message ready. Check it, then press send in WhatsApp.</p>`
-        : `<div><button class="btn ${due?"":"ghost"}" data-act="t-repopen" data-k="${key}">${due?"📨 Send this week's report":"Preview and send a report"}</button></div>`) : ""}
+        : `<div><button class="btn" data-act="t-repopen" data-k="${key}">📨 Make a report</button></div>`) : ""}
     </div>`;}).join("")}</div>`;
-}
-function reportBanner(){
-  const due = allStudents().filter(s=>repOf(s.code, s.l.id).phone && reportDue(s.code, s.l.id));
-  return due.length ? `<div class="banner"><b>📨 Report day.</b> Send ${due.map(s=>esc(s.l.name)).join(", ")}'s progress report to ${due.length===1?"the parent":"the parents"}. <a href="#reports">Go to reports ↓</a></div>` : "";
 }
 
 /* ---------- teacher side ---------- */
@@ -446,7 +446,6 @@ function vTeacher(){
   const lopts = Object.entries(LESSONS).filter(([k,L])=>!sel || +sel.l.grade===L.grade).map(([k,L])=>`<label class="chk"><input type="checkbox" name="t-lesson" value="${k}" ${(S.tgive||[]).includes(k)?"checked":""}><span>${esc(L.title)}<small class="muted">${L.kind?`${L.kind==="mc"?"Multiple choice, marked automatically":"Show your method, you mark it"} · ${L.minutes} min · ${L.outOf} marks`:`Lesson: notes, examples, practice and a ${L.minutes}-min test`}${tplOf(k)?" · <b>edited by you</b>":""}</small><span class="chklinks"><button type="button" class="linkbtn" data-act="t-prev" data-k="${k}">Open</button><button type="button" class="linkbtn" data-act="t-tpl" data-k="${k}">Edit</button></span></span></label>`).join("");
   return `${S.family&&S.family.teacher?"":crumbs([{act:"parent",label:"Parent"},{label:"Teacher"}])}
   <h1 class="pagetitle">Teacher</h1>
-  ${reportBanner()}
   <h2 class="h2s">Progress by family</h2>
   <p class="muted" style="margin:0 0 10px">Tap a child to see their full progress report: practice calendar, subjects, tests, weak spots and lessons.</p>
   ${famProgress()}
@@ -633,7 +632,11 @@ document.addEventListener("click", e=>{
   else if(act==="l-start"){ const x = curLesson(); x.testStartedAt = Date.now(); x.status = "started"; saveLesson(S.code, x); render(); window.scrollTo(0,0); }
   else if(act==="l-rmpage"){ const x = curLesson(), p = b.dataset.p; x.pages = (x.pages||[]).filter(i=>i!==p); saveLesson(S.code, x); famRef.collection("pages").doc(p).delete().catch(()=>{}); render(); }
   else if(act==="l-mc"){ const x = curLesson(); if(!x || x.status==="marked" || x.pausedAt) return; x.answers = {...(x.answers||{}), [b.dataset.n]: +b.dataset.o}; S.mcconfirm = false; saveLesson(S.code, x); const y = window.scrollY; render(); window.scrollTo(0, y); }
-  else if(act==="t-repopen"){ S.trep = b.dataset.k; S.repNote = ""; render(); document.getElementById("rep-text")?.scrollIntoView({block:"center"}); }
+  else if(act==="t-repopen"){ S.trep = b.dataset.k; S.repNote = ""; S.repFrom = S.repTo = null; render(); document.getElementById("rep-text")?.scrollIntoView({block:"center"}); }
+  else if(act==="t-repq"){ S.repNote = document.getElementById("rep-note")?.value || S.repNote || ""; const v = b.dataset.v, t = new Date(), f = new Date();
+    if(v==="7") f.setDate(t.getDate()-6); else if(v==="14") f.setDate(t.getDate()-13); else if(v==="month") f.setDate(1); else if(v==="term") f.setMonth(t.getMonth()-3);
+    else if(v==="last"){ const r = (S.reports||[]).find(x=>x.id===b.dataset.k); if(r && r.lastSentAt) f.setTime(r.lastSentAt); }
+    S.repFrom = isoDay(f); S.repTo = isoDay(t); render(); document.getElementById("rep-text")?.scrollIntoView({block:"center"}); }
   else if(act==="t-repclose"){ S.trep = null; render(); }
   else if(act==="t-repphone"){ S.repEditPhone = {...(S.repEditPhone||{}), [b.dataset.k]:true}; render(); }
   else if(act==="t-repbuild"){ S.repNote = document.getElementById("rep-note")?.value || ""; render(); document.getElementById("rep-text")?.scrollIntoView({block:"center"}); }
@@ -696,6 +699,7 @@ document.addEventListener("input", e=>{
 document.addEventListener("mousedown", e=>{ if(e.target.closest(".etools button")) e.preventDefault(); });
 document.addEventListener("change", e=>{
   if(e.target.id==="t-stud"){ S.tstud = +e.target.value; render(); }
+  if(e.target.id==="rep-from" || e.target.id==="rep-to"){ S.repNote = document.getElementById("rep-note")?.value || S.repNote || ""; if(e.target.value){ if(e.target.id==="rep-from") S.repFrom = e.target.value; else S.repTo = e.target.value; render(); document.getElementById("rep-text")?.scrollIntoView({block:"center"}); } return; }
   if(e.target.dataset && e.target.dataset.wm){ const key = e.target.dataset.wm, r = repOf(e.target.dataset.c, e.target.dataset.l);
     famRef.collection("reports").doc(key).set({phone:r.phone, code:e.target.dataset.c, learnerId:e.target.dataset.l, lastSentAt:r.lastSentAt||null, sent:r.sent||[], withMe:e.target.value}).catch(()=>{});
     S.note = e.target.value==="" ? "Saved." : `Saved. ${["Sundays","Mondays","Tuesdays","Wednesdays","Thursdays","Fridays","Saturdays"][+e.target.value]} are now shown as days with you, separate from his own practice.`; render(); }
