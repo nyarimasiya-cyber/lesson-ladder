@@ -274,6 +274,19 @@ function lessonOf(x){
   const B = LESSONS[x.lessonKey]; if(!B) return null;
   const c = x.custom || {};
   return {...B, title:c.title||B.title, intro:c.intro??B.intro, notes:c.notes??B.notes, examples:c.examples??B.examples,
-    practice:B.practice.map((p,i)=>({...p, ...((c.practice||[])[i]||{})})),
-    test:B.test.map((t,i)=>(c.test||[])[i] ?? t), memo:B.memo.map((m,i)=>(c.memo||[])[i] ?? m)};
+    practice:(B.practice||[]).map((p,i)=>({...p, ...((c.practice||[])[i]||{})})),
+    test:(B.test||[]).map((t,i)=>(c.test||[])[i] ?? t), memo:(B.memo||[]).map((m,i)=>(c.memo||[])[i] ?? m)};
 }
+
+/* Timed tests with no notes.
+   kind "mc": answered on screen and marked automatically.
+   kind "written": typed on screen (answer and working) and/or written on paper and uploaded; the teacher marks each question. */
+function defineTest(key, T){
+  if(T.kind==="mc"){
+    const test = [], memo = [];
+    T.mc.forEach(q=>{ if(q.head){ test.push(q.head); return; } test.push(q.q); memo.push(`${"ABCD"[q.a]}. ${q.o[q.a]}${q.e?`. ${q.e}`:""}`); });
+    T.test = test; T.memo = memo; T.outOf = memo.length;
+  }
+  LESSONS[key] = {notes:"", examples:"", practice:[], ...T};
+}
+const mcQs = L => (L.mc||[]).filter(q=>!q.head);

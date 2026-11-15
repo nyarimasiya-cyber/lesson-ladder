@@ -396,3 +396,19 @@ i.h1{background:var(--h1)!important} i.h2{background:var(--h2)!important} i.h3{b
 .qm{font-weight:800;white-space:nowrap}
 .qnote,.qans{margin:6px 0 0 30px;font-size:15px}
 .qans{color:var(--muted)}
+/* timed tests */
+.opt.chosen{border-color:var(--accent);background:var(--accent-soft,#e3f1ec);box-shadow:inset 0 0 0 2px var(--accent)}
+.opt.chosen .k{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tqa{display:grid;gap:8px}
+.tqa textarea{width:100%;box-sizing:border-box;font:inherit;font-size:16px;line-height:1.45;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit;resize:vertical}
+.tqa textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.tq{margin:0 0 4px}
+.typed{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:4px;font-size:15px}
+.qyour{margin:6px 0 0 30px;font-size:15px}
+.qrow .qyour{margin-left:0}
+.pickl{border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:grid;gap:4px;min-width:0}
+.pickl legend{font-weight:700;padding:0 4px}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-weight:600}
+.chk:last-child{border-bottom:0}
+.chk input{width:22px;height:22px;flex:none;margin-top:2px}
+.chk small{display:block;font-weight:400;font-size:13px;margin-top:2px}
