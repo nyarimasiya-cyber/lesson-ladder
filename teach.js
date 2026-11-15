@@ -12,10 +12,21 @@ function syncLinks(){
   Object.keys(T.fams).forEach(c=>{ if(!want.has(c)){ T.fams[c].unsubs.forEach(u=>u()); delete T.fams[c]; } });
   want.forEach(c=>{
     if(T.fams[c] || c===S.code) return;
-    const f = T.fams[c] = {learners:[], lessons:[], attempts:[], reads:[], unsubs:[]};
-    ["learners","lessons","attempts","reads"].forEach(kind=>{
-      f.unsubs.push(famDoc(c).collection(kind).onSnapshot(snap=>{ f[kind] = snap.docs.map(d=>({id:d.id, ...d.data()})); if(["teacher","tmark"].includes(S.view)) softRender(); }, ()=>{}));
-    });
+    const f = T.fams[c] = {learners:[], lessons:[], attempts:[], reads:[], unsubs:[], loaded:false, error:"", tries:0};
+    subscribeFam(c, f);
+  });
+}
+function subscribeFam(c, f){
+  f.unsubs.forEach(u=>u()); f.unsubs = [];
+  ["learners","lessons","attempts","reads"].forEach(kind=>{
+    f.unsubs.push(famDoc(c).collection(kind).onSnapshot(snap=>{
+      f[kind] = snap.docs.map(d=>({id:d.id, ...d.data()})); if(kind==="learners"){ f.loaded = true; f.error = ""; }
+      if(["teacher","tmark"].includes(S.view)) softRender();
+    }, err=>{
+      f.error = (err && err.code) || "unavailable";
+      if(f.tries++ < 5) setTimeout(()=>{ if(T.fams[c]===f) subscribeFam(c, f); }, 3000 * f.tries);
+      if(["teacher","tmark"].includes(S.view)) softRender();
+    }));
   });
 }
 function allStudents(){
@@ -336,7 +347,7 @@ function famProgress(){
   if(S.learners.length) fams.push({code:S.code, label:"Your family", f:{learners:S.learners, attempts:S.attempts, reads:S.reads, lessons:S.lessons}});
   (S.links||[]).forEach(x=>{ if(T.fams[x.id]) fams.push({code:x.id, label:x.label||"Linked family", f:T.fams[x.id]}); });
   if(!fams.length) return `<p class="muted">No families linked yet. Link a family below to see its children here.</p>`;
-  return fams.map(({code,label,f})=>`<div class="famcard"><h3>${esc(label)}</h3>
+  return fams.map(({code,label,f})=>`<div class="famcard"><h3>${esc(label)} <span class="muted" style="font-size:13px;font-weight:600">· code ending ${esc(code.slice(-4))}</span></h3>
     ${f.learners.length ? f.learners.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(k=>withFam(f, ()=>{
       const v = effortVerdict(k.id), tests = S.attempts.filter(a=>a.learnerId===k.id && (kindOf(a)==="topic"||a.kind==="chapter"||a.kind==="mock") && a.at > Date.now()-28*86400000);
       const avg = tests.length ? Math.round(tests.reduce((s,a)=>s+pctOf(a),0)/tests.length) : null;
@@ -344,7 +355,9 @@ function famProgress(){
       return `<button class="kidrow" data-act="t-view" data-c="${code}" data-id="${esc(k.id)}">
         <span><b>${esc(k.name)}</b> <span class="muted">Grade ${gradeLabel(k.grade)}</span><br><span class="effline ${v.cls}">${weekDots(k.id)}<span>${v.head}: ${v.last14}/14 days</span></span></span>
         <span class="kidnums"><span>${avg==null?"No tests":`Avg ${avg}%`}</span><span class="muted">${weakItems(k.id).length} weak</span>${waiting?`<span class="pill p-bad">${waiting} to mark</span>`:open?`<span class="pill p-warn">${open} lesson${open===1?"":"s"} open</span>`:""}</span></button>`; })).join("")
-      : `<p class="muted">No children added in this family yet.</p>`}</div>`).join("");
+      : f.error && !f.loaded ? `<p class="muted">Couldn't load this family yet (${esc(f.error)}). Trying again… If this stays, close the app and open it again.</p> <button class="linkbtn" data-act="t-reload" data-c="${code}">Try again now</button>`
+      : f.loaded===false ? `<p class="muted">Loading…</p>`
+      : `<p class="muted">No children in this family yet. The parent must open Lesson Ladder with this family code (ending <b>${esc(code.slice(-4))}</b>) and tap <b>Add a learner</b>. If their code ends differently, link their code instead.</p>`}</div>`).join("");
 }
 function teachView(code, lid){
   S.tview = {home:S.code};
@@ -760,6 +773,7 @@ document.addEventListener("click", e=>{
     const {qm} = readQMarks(), tot = Object.values(qm).reduce((a,c)=>a+c,0), L = lessonOf(findLesson(S.tsel.code, S.tsel.id)), all = lessonTestItems(L).filter(it=>!it.head).length, done = Object.keys(qm).length;
     document.getElementById("qtotal").textContent = tot; document.getElementById("m-mark").value = tot;
     document.getElementById("qleft").textContent = done<all ? `(${all-done} question${all-done===1?"":"s"} still to mark)` : "(all marked)"; }
+  else if(act==="t-reload"){ const f = T.fams[b.dataset.c]; if(f){ f.tries = 0; f.error = ""; subscribeFam(b.dataset.c, f); } render(); }
   else if(act==="t-del"){ S.tdel = b.dataset.id; render(); }
   else if(act==="t-delno"){ S.tdel = null; render(); }
   else if(act==="t-delyes"){
