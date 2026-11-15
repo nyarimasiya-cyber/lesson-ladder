@@ -412,3 +412,14 @@ i.h1{background:var(--h1)!important} i.h2{background:var(--h2)!important} i.h3{b
 .chk:last-child{border-bottom:0}
 .chk input{width:22px;height:22px;flex:none;margin-top:2px}
 .chk small{display:block;font-weight:400;font-size:13px;margin-top:2px}
+/* result verdict */
+.verdict{border-radius:var(--r,12px);padding:14px 16px;margin:0 0 14px;border:2px solid;display:grid;gap:6px}
+.verdict b{font-size:22px;letter-spacing:.02em}
+.verdict p{margin:0}
+.verdict .btn{justify-self:start;margin-top:4px}
+.verdict.fail{background:var(--bad-soft);border-color:var(--bad);color:var(--ink,inherit)}
+.verdict.fail b{color:var(--bad)}
+.verdict.pass{background:var(--warn-soft);border-color:var(--warn)}
+.verdict.pass b{color:var(--warn)}
+.verdict.great{background:var(--good-soft);border-color:var(--good)}
+.verdict.great b{color:var(--good)}

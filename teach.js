@@ -30,7 +30,26 @@ function saveLesson(code, x){ const {id, ...data} = x; famDoc(code).collection("
 /* ----- status ----- */
 const LSTATUS = {assigned:["New","p-warn"], started:["In progress","p-warn"], submitted:["Waiting for marking","p-none"], marked:["Marked","p-good"], redo:["Redo requested","p-bad"]};
 const notSent = x => (x.pages||[]).length>0 && !["submitted","marked"].includes(x.status);
-const lstatus = x => notSent(x) ? ["Pages uploaded, not submitted","p-bad"] : (LSTATUS[x.status] || LSTATUS.assigned);
+const PASS = 60, GOAL = 80;
+const lessonPct = x => { const L = lessonOf(x); return L && L.outOf ? Math.round((x.mark||0)/L.outOf*100) : 0; };
+const lstatus = x => {
+  if(notSent(x)) return ["Pages uploaded, not submitted","p-bad"];
+  if(x.status==="marked"){ const p = lessonPct(x); return p<PASS ? [`Fail · ${p}%`,"p-bad"] : p<GOAL ? [`Pass · ${p}%`,"p-warn"] : [`${p}% · goal reached`,"p-good"]; }
+  return LSTATUS[x.status] || LSTATUS.assigned;
+};
+const attemptsLine = x => (x.attempts||[]).length ? `Attempt ${x.attempts.length+1}. Earlier: ${x.attempts.map(a=>a.pct+"%").join(", ")}.` : "";
+const GOOD_MSG = [n=>`Excellent work, ${n}! You reached the 80% goal. Your hard work is paying off.`, n=>`Outstanding, ${n}! This is what putting in the work looks like. Keep it up!`, n=>`Well done, ${n}! You clearly studied for this. Keep working like this and you'll pass your exams with ease.`];
+function autoFeedback(mark, outOf, name){ const pct = Math.round(mark/outOf*100), n = name || "you";
+  return pct<PASS ? `Fail. You got ${mark} out of ${outOf} (${pct}%). You need at least ${PASS}% to pass. Go back to your notes, study the correct answers, and take the test again.`
+    : pct<GOAL ? `Pass. You got ${mark} out of ${outOf} (${pct}%). Good effort, ${n}, but your goal is ${GOAL}%. Learn the questions you got wrong and try again to reach ${GOAL}%.`
+    : `${GOOD_MSG[mark%GOOD_MSG.length](n)} You got ${mark} out of ${outOf} (${pct}%).`; }
+function resultBanner(x, L, name){
+  const pct = Math.round(x.mark/L.outOf*100), retake = L.kind ? `<button class="btn" data-act="l-retake">↻ Take the test again</button>` : "";
+  const hist = attemptsLine(x);
+  if(pct<PASS) return `<div class="verdict fail"><b>❌ FAIL · ${pct}%</b><p>You need at least ${PASS}% to pass. Go back to your notes, study every correct answer below, then take the test again.</p>${hist?`<p class="muted">${hist}</p>`:""}${L.kind?retake:`<p>Do your corrections and ask your teacher for a redo.</p>`}</div>`;
+  if(pct<GOAL) return `<div class="verdict pass"><b>✔ PASS · ${pct}%</b><p>Good effort, ${esc(name)}. You're not at the ${GOAL}% goal yet. Study the questions you got wrong, then try again to reach ${GOAL}%.</p>${hist?`<p class="muted">${hist}</p>`:""}${L.kind?retake.replace("Take the test again","Try again for 80%").replace('class="btn"','class="btn ghost"'):""}</div>`;
+  return `<div class="verdict great"><b>🎯 EXCELLENT · ${pct}%</b><p>${esc(GOOD_MSG[x.mark%GOOD_MSG.length](name))}</p>${hist?`<p class="muted">${hist}</p>`:""}</div>`;
+}
 /* test time excludes pauses (toilet breaks); pauses are counted so the teacher and parent can see them */
 const pausedNow = x => x.pausedAt ? Date.now() - x.pausedAt : 0;
 const usedMs = x => (x.submittedAt || Date.now()) - x.testStartedAt - (x.pausedMs||0) - pausedNow(x);
@@ -97,16 +116,15 @@ function vTestOnly(x, L, l){
   ${x.msg?`<div class="banner"><b>Message from your teacher:</b> ${esc(x.msg)}</div>`:""}
   ${testBody(x, L)}`;
 }
-const GOAL = 80;
-function autoFeedback(mark, outOf){ const pct = Math.round(mark/outOf*100);
-  return `${praiseFor(pct)} You got ${mark} out of ${outOf} (${pct}%). ${pct>=GOAL?`You reached the ${GOAL}% goal. Keep it up!`:`Your goal is ${GOAL}%. Read every question you got wrong below, learn the correct answer, and go back to your notes for those topics.`}`; }
+/* multiple-choice options are shown in a different order on each new attempt, so a retake can't be done from memory of letters */
+function optOrder(x, n){ const k = (x.attempts||[]).length, r = k ? 1 + ((k*2 + n) % 3) : 0; return [0,1,2,3].map(i=>(i + r) % 4); }
 function submitMC(x, L){
   if(x.status==="marked") return;
   const qs = mcQs(L), ans = x.answers || {}, qm = {};
   qs.forEach((q,i)=>qm[i+1] = ans[i+1]===q.a ? 1 : 0);
   const mark = Object.values(qm).reduce((a,b)=>a+b,0);
   if(x.pausedAt){ x.pausedMs = (x.pausedMs||0) + (Date.now()-x.pausedAt); x.pausedAt = null; }
-  Object.assign(x, {qmarks:qm, mark, status:"marked", submittedAt:Date.now(), markedAt:Date.now(), autoMarked:true, feedback:autoFeedback(mark, L.outOf)});
+  Object.assign(x, {qmarks:qm, mark, status:"marked", submittedAt:Date.now(), markedAt:Date.now(), autoMarked:true, feedback:autoFeedback(mark, L.outOf, (learner()||{}).name)});
   saveLesson(S.code, x);
 }
 function readTyped(x){ const t = {...(x.typed||{})}; document.querySelectorAll("[data-ta]").forEach(el=>{ t[el.dataset.ta] = el.value; }); x.typed = t; return t; }
@@ -115,7 +133,7 @@ function testBody(x, L){
   const mc = L.kind==="mc", items = lessonTestItems(L), pages = x.pages || [], qN = items.filter(it=>!it.head).length;
   if(x.status==="marked"){
     const pct = Math.round(x.mark/L.outOf*100);
-    return `<div class="score"><div class="big">${x.mark}<small>/${L.outOf}</small></div><div><div style="font-weight:700;font-size:20px">${pct}% · Level ${level(pct)[0]}</div><div class="muted">${pct>=GOAL?`🎯 Goal of ${GOAL}% reached!`:`Goal: ${GOAL}%`} · ${mc?"Marked automatically":"Marked"} on ${fmtDate(x.markedAt)}.</div></div></div>
+    return `${resultBanner(x, L, (learner()||{}).name||"")}<div class="score"><div class="big">${x.mark}<small>/${L.outOf}</small></div><div><div style="font-weight:700;font-size:20px">${pct}% · Level ${level(pct)[0]}</div><div class="muted">Pass mark ${PASS}% · Goal ${GOAL}% · ${mc?"Marked automatically":"Marked"} on ${fmtDate(x.markedAt)}.</div></div></div>
     ${markSummary(x)}${qBreakdown(x, L)}${pageStrip(x)}`;
   }
   if(x.status==="submitted") return `<div class="banner"><b>Handed in.</b> You handed in your test on ${fmtDate(x.submittedAt)}${minsTaken(x)!=null?`, after ${minsTaken(x)} minutes`:""}. Your teacher will mark it, and you'll see your mark and every question here.</div>${typedList(x, L)}${pageStrip(x)}`;
@@ -131,7 +149,7 @@ function testBody(x, L){
     return `${timerBar(x, left, "")}
     <div class="banner">Tap the answer you choose. You can change it until you hand in. <b>${done} of ${qN} answered.</b></div>
     ${items.map(it=>it.head ? `<div class="notes">${it.head}</div>` : `<div class="panel lq" id="q${it.n}"><div class="tq"><b>${it.n}.</b> ${it.q}</div>
-      <div class="opts">${qs[it.n-1].o.map((o,oi)=>`<button class="opt ${ans[it.n]===oi?"chosen":""}" data-act="l-mc" data-n="${it.n}" data-o="${oi}" aria-pressed="${ans[it.n]===oi}"><span class="k">${"ABCD"[oi]}</span><span>${esc(o)}</span></button>`).join("")}</div></div>`).join("")}
+      <div class="opts">${optOrder(x, it.n).map((oi,pos)=>`<button class="opt ${ans[it.n]===oi?"chosen":""}" data-act="l-mc" data-n="${it.n}" data-o="${oi}" aria-pressed="${ans[it.n]===oi}"><span class="k">${"ABCD"[pos]}</span><span>${esc(qs[it.n-1].o[oi])}</span></button>`).join("")}</div></div>`).join("")}
     ${S.mcconfirm && done<qN ? `<div class="banner"><b>You haven't answered ${qN-done} question${qN-done===1?"":"s"}.</b> Go back and answer ${qN-done===1?"it":"them"}, or tap the button again to hand in anyway.</div>` : ""}
     <div class="cta"><button class="btn" data-act="l-mcsubmit">Hand in my test (${done}/${qN} answered)</button></div>`;
   }
@@ -157,7 +175,7 @@ function lessonTest(x, L){
   const items = lessonTestItems(L), pages = x.pages || [];
   if(x.status==="marked"){
     const pct = Math.round(x.mark/L.outOf*100);
-    return `<div class="score"><div class="big">${x.mark}<small>/${L.outOf}</small></div><div><div style="font-weight:700;font-size:20px">${pct}% · Level ${level(pct)[0]}</div><div class="muted">${praiseFor(pct)} Marked on ${fmtDate(x.markedAt)}.</div></div></div>
+    return `${resultBanner(x, L, (learner()||{}).name||"")}<div class="score"><div class="big">${x.mark}<small>/${L.outOf}</small></div><div><div style="font-weight:700;font-size:20px">${pct}% · Level ${level(pct)[0]}</div><div class="muted">Pass mark ${PASS}% · Goal ${GOAL}% · Marked on ${fmtDate(x.markedAt)}.</div></div></div>
     ${markSummary(x)}${qBreakdown(x, L)}${pageStrip(x)}`;
   }
   if(x.status==="submitted") return `<div class="banner"><b>Submitted.</b> You handed in ${pages.length} page${pages.length===1?"":"s"} on ${fmtDate(x.submittedAt)}${minsTaken(x)!=null?`, after ${minsTaken(x)} minutes`:""}. Your teacher will mark it and you'll see your mark and comments here.</div>${pageStrip(x)}`;
@@ -198,10 +216,10 @@ function qBreakdown(x, L){
     return `<div class="qi ${cls}"><div class="qtop"><span class="qic" aria-hidden="true">${ic}</span><span class="qq"><b>${it.n}.</b> ${esc(qText(it.q))}</span><span class="qm">${g==null?"–":g}/${mx}</span></div>
       ${yourAnswer(x, L, it.n, "Your answer")}
       ${qn[it.n]?`<p class="qnote"><b>Teacher:</b> ${esc(qn[it.n])}</p>`:""}
-      ${g!==mx && L.memo[it.n-1]?`<p class="qans"><b>Correct answer:</b> ${esc(L.memo[it.n-1].split(" WHOLE TEST:")[0])}</p>`:""}</div>`;}).join("")}</div>`;
+      ${g!==mx && L.memo[it.n-1]?`<p class="qans"><b>Correct answer:</b> ${esc(L.kind==="mc" ? (q=>`${"ABCD"[optOrder(x,it.n).indexOf(q.a)]}. ${q.o[q.a]}. ${q.e||""}`)(mcQs(L)[it.n-1]) : L.memo[it.n-1].split(" WHOLE TEST:")[0])}</p>`:""}</div>`;}).join("")}</div>`;
 }
 function yourAnswer(x, L, n, label){
-  if(L.kind==="mc"){ const a = (x.answers||{})[n], q = mcQs(L)[n-1]; return `<p class="qyour"><b>${label}:</b> ${a==null?`<span class="muted">Not answered</span>`:esc(`${"ABCD"[a]}. ${q.o[a]}`)}</p>`; }
+  if(L.kind==="mc"){ const a = (x.answers||{})[n], q = mcQs(L)[n-1], ord = optOrder(x, n); return `<p class="qyour"><b>${label}:</b> ${a==null?`<span class="muted">Not answered</span>`:esc(`${"ABCD"[ord.indexOf(a)]}. ${q.o[a]}`)}</p>`; }
   const t = (x.typed||{})[n]; return t && t.trim() ? `<div class="qyour"><b>${label}:</b><div class="typed">${esc(t)}</div></div>` : "";
 }
 function qMarkRows(x, L){
@@ -338,7 +356,7 @@ function vTeacher(){
     <fieldset class="pickl"><legend>Lessons and tests <span class="muted">(tick one or more)</span></legend>${lopts||`<p class="muted">No lessons for this grade yet.</p>`}</fieldset>
     <label for="t-msg">Message to the student (optional)<textarea id="t-msg" rows="2" maxlength="300" placeholder="e.g. Do this before Friday. Remember: neat work and show your method."></textarea></label>
     <div><button class="btn" type="submit" ${lopts?"":"disabled"}>Give to this student</button></div></form>`:`<p class="muted">Add a learner or link a family first.</p>`}
-  ${lessons.length?`<h2 class="h2s">All lessons</h2><div class="feed">${lessons.map(o=>{const [st,cls]=lstatus(o.x), L=lessonOf(o.x); return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${(o.x.pages||[]).length?` · ${o.x.pages.length} page${o.x.pages.length===1?"":"s"} uploaded`:""}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}).join("")}</div>`:""}
+  ${lessons.length?`<h2 class="h2s">All lessons</h2><div class="feed">${lessons.map(o=>{const [st,cls]=lstatus(o.x), L=lessonOf(o.x); return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${(o.x.attempts||[]).length?` · 🔁 attempt ${o.x.attempts.length+1} (before: ${o.x.attempts.map(t=>t.pct+"%").join(", ")})`:""}${(o.x.pages||[]).length?` · ${o.x.pages.length} page${o.x.pages.length===1?"":"s"} uploaded`:""}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}).join("")}</div>`:""}
   <h2 class="h2s">Students in other families</h2>
   <p class="muted" style="margin:0 0 10px">To teach a child from another family, ask their parent for their family code (Parent → Family code on their device). Their parent will see the lessons and marks in their own app.</p>
   ${(S.links||[]).length?`<div class="feed" style="margin-bottom:12px">${S.links.map(x=>`<div><span><b>${esc(x.label||"Linked family")}</b> · ${(T.fams[x.id]?.learners||[]).map(l=>esc(l.name)).join(", ")||"loading…"}</span><button class="linkbtn" data-act="t-unlink" data-c="${x.id}">Remove</button></div>`).join("")}</div>`:""}
@@ -353,7 +371,7 @@ function vTMark(){
   const st = allStudents().find(s=>s.code===code && s.l.id===x.learnerId), L = lessonOf(x);
   loadPages(code, x.pages||[]);
   const ex = x.ex || {}, exN = Object.keys(ex).length, exR = Object.values(ex).filter(Boolean).length;
-  const CHIPS = ["Excellent work!","Good work!","Well tried!","Show all your method.","Work must be neat.","Use a ruler for graphs and tables.","Check your calculations.","Label your graph and give it a title.","Do your corrections."];
+  const CHIPS = ["Fail. Study your notes and take the test again.","Excellent work!","Good work!","Well tried!","Show all your method.","Work must be neat.","Use a ruler for graphs and tables.","Check your calculations.","Label your graph and give it a title.","Do your corrections."];
   const over = minsTaken(x)!=null && minsTaken(x) > L.minutes;
   return `${crumbs([...(S.family&&S.family.teacher?[]:[{act:"parent",label:"Parent"}]),{act:"teacher",label:"Teacher"},{label:st?st.l.name:"Lesson"}])}
   <h1 class="pagetitle">${esc(st?st.l.name:"")} · ${esc(L.title.split(":")[0])}</h1>
@@ -445,6 +463,7 @@ function vPLessons(k){
     const open = S.plopen===x.id;
     return `<div class="tcard static"><span class="meta"><b>${esc(L.title)}</b><span class="pill ${cls}">${st}</span></span>
       <span class="muted" style="font-size:14px">Given ${fmtDate(x.assignedAt)} · ${L.kind?(L.kind==="mc"?"multiple-choice test":"written test"):`practice ${Object.values(ex).filter(Boolean).length}/5 right first time`}${minsTaken(x)!=null?` · test took ${minsTaken(x)} min${x.pauses?`, ${pauseNote(x)}`:""}`:""}${x.status==="marked"?` · <b>Mark ${x.mark}/${L.outOf} (${Math.round(x.mark/L.outOf*100)}%)</b>`:""}</span>
+      ${(x.attempts||[]).length?`<span class="muted" style="font-size:14px">🔁 Taken ${x.attempts.length+1} times. Earlier marks: ${x.attempts.map(a=>a.pct+"%").join(", ")}.</span>`:""}
       ${x.status==="marked"||x.status==="redo" ? markSummary(x) : ""}
       ${(x.status==="marked"||x.status==="redo") && x.qmarks && Object.keys(x.qmarks).length ? `<details class="more"><summary>See every question: right and wrong</summary>${qBreakdown(x, L)}</details>` : ""}
       ${(x.pages||[]).length ? (open ? pageStrip(x) : `<button class="linkbtn" data-act="p-pages" data-id="${esc(x.id)}">See his written work (${x.pages.length} pages)</button>`) : ""}
@@ -471,6 +490,10 @@ document.addEventListener("click", e=>{
   else if(act==="l-start"){ const x = curLesson(); x.testStartedAt = Date.now(); x.status = "started"; saveLesson(S.code, x); render(); window.scrollTo(0,0); }
   else if(act==="l-rmpage"){ const x = curLesson(), p = b.dataset.p; x.pages = (x.pages||[]).filter(i=>i!==p); saveLesson(S.code, x); famRef.collection("pages").doc(p).delete().catch(()=>{}); render(); }
   else if(act==="l-mc"){ const x = curLesson(); if(!x || x.status==="marked" || x.pausedAt) return; x.answers = {...(x.answers||{}), [b.dataset.n]: +b.dataset.o}; S.mcconfirm = false; saveLesson(S.code, x); const y = window.scrollY; render(); window.scrollTo(0, y); }
+  else if(act==="l-retake"){ const x = curLesson(), L = lessonOf(x); if(!x || x.status!=="marked") return;
+    x.attempts = [...(x.attempts||[]), {mark:x.mark, outOf:L.outOf, pct:Math.round(x.mark/L.outOf*100), at:x.markedAt||Date.now(), pauses:x.pauses||0}];
+    ["answers","typed","qmarks","qnotes","mark","testStartedAt","submittedAt","markedAt","pausedAt","pausedMs","pauses","feedback","method","neatness","autoMarked","submittedBy"].forEach(k=>delete x[k]);
+    x.pages = []; x.status = "assigned"; x.retakenAt = Date.now(); S.mcconfirm = false; saveLesson(S.code, x); render(); window.scrollTo(0,0); }
   else if(act==="l-mcsubmit"){ const x = curLesson(), L = lessonOf(x), done = Object.keys(x.answers||{}).length, n = mcQs(L).length;
     if(done<n && !S.mcconfirm){ S.mcconfirm = true; const y = window.scrollY; render(); window.scrollTo(0, y); return; }
     S.mcconfirm = false; submitMC(x, L); render(); window.scrollTo(0,0); }
@@ -574,7 +597,8 @@ document.addEventListener("submit", async e=>{
     e.preventDefault();
     const {code,id} = S.tsel, x = findLesson(code,id), L = lessonOf(x), m = Math.max(0, Math.min(L.outOf, Math.round(+document.getElementById("m-mark").value)));
     const {qm, qn} = readQMarks(); x.qmarks = qm; x.qnotes = qn;
-    Object.assign(x, {mark:m, method:document.getElementById("m-method").value, neatness:document.getElementById("m-neat").value, feedback:document.getElementById("m-fb").value.trim(), status:"marked", markedAt:Date.now()});
+    const st = allStudents().find(s=>s.code===code && s.l.id===x.learnerId);
+    Object.assign(x, {mark:m, method:document.getElementById("m-method").value, neatness:document.getElementById("m-neat").value, feedback:document.getElementById("m-fb").value.trim() || autoFeedback(m, L.outOf, st?st.l.name:""), status:"marked", markedAt:Date.now()});
     saveLesson(code, x); go("teacher"); S.note = "Mark saved. The student and parent can see it now."; render();
   }
 });
