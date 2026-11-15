@@ -121,7 +121,7 @@ function optOrder(x, n){ const k = (x.attempts||[]).length, r = k ? 1 + ((k*2 + 
 function submitMC(x, L){
   if(x.status==="marked") return;
   const qs = mcQs(L), ans = x.answers || {}, qm = {};
-  qs.forEach((q,i)=>qm[i+1] = ans[i+1]===q.a ? 1 : 0);
+  qs.forEach((q,i)=>{ if(!q.removed) qm[i+1] = ans[i+1]===q.a ? 1 : 0; });
   const mark = Object.values(qm).reduce((a,b)=>a+b,0);
   if(x.pausedAt){ x.pausedMs = (x.pausedMs||0) + (Date.now()-x.pausedAt); x.pausedAt = null; }
   Object.assign(x, {qmarks:qm, mark, status:"marked", submittedAt:Date.now(), markedAt:Date.now(), autoMarked:true, feedback:autoFeedback(mark, L.outOf, (learner()||{}).name)});
@@ -130,7 +130,7 @@ function submitMC(x, L){
 function readTyped(x){ const t = {...(x.typed||{})}; document.querySelectorAll("[data-ta]").forEach(el=>{ t[el.dataset.ta] = el.value; }); x.typed = t; return t; }
 function typedCount(x){ return Object.values(x.typed||{}).filter(v=>String(v).trim()).length; }
 function testBody(x, L){
-  const mc = L.kind==="mc", items = lessonTestItems(L), pages = x.pages || [], qN = items.filter(it=>!it.head).length;
+  const mc = L.kind==="mc", items = lessonTestItems(L), pages = x.pages || [], qN = items.filter(it=>!it.head && !isRem(it.q)).length;
   if(x.status==="marked"){
     const pct = Math.round(x.mark/L.outOf*100);
     return `${resultBanner(x, L, (learner()||{}).name||"")}<div class="score"><div class="big">${x.mark}<small>/${L.outOf}</small></div><div><div style="font-weight:700;font-size:20px">${pct}% · Level ${level(pct)[0]}</div><div class="muted">Pass mark ${PASS}% · Goal ${GOAL}% · ${mc?"Marked automatically":"Marked"} on ${fmtDate(x.markedAt)}.</div></div></div>
@@ -145,10 +145,10 @@ function testBody(x, L){
   if(x.pausedAt && x.status!=="redo") return pauseScreen(x, left);
   if(mc){
     if(left===0){ setTimeout(()=>{ submitMC(x, L); render(); }, 0); return `<div class="banner">Time is up. Handing in your answers…</div>`; }
-    const ans = x.answers || {}, done = Object.keys(ans).length, qs = mcQs(L);
+    const qs = mcQs(L), ans = x.answers || {}, done = Object.keys(ans).filter(n=>qs[n-1] && !qs[n-1].removed).length;
     return `${timerBar(x, left, "")}
     <div class="banner">Tap the answer you choose. You can change it until you hand in. <b>${done} of ${qN} answered.</b></div>
-    ${items.map(it=>it.head ? `<div class="notes">${it.head}</div>` : `<div class="panel lq" id="q${it.n}"><div class="tq"><b>${it.n}.</b> ${it.q}</div>
+    ${items.map(it=>it.head ? `<div class="notes">${it.head}</div>` : isRem(it.q) ? REMOVED(it.n) : `<div class="panel lq" id="q${it.n}"><div class="tq"><b>${it.n}.</b> ${it.q}</div>
       <div class="opts">${optOrder(x, it.n).map((oi,pos)=>`<button class="opt ${ans[it.n]===oi?"chosen":""}" data-act="l-mc" data-n="${it.n}" data-o="${oi}" aria-pressed="${ans[it.n]===oi}"><span class="k">${"ABCD"[pos]}</span><span>${esc(qs[it.n-1].o[oi])}</span></button>`).join("")}</div></div>`).join("")}
     ${S.mcconfirm && done<qN ? `<div class="banner"><b>You haven't answered ${qN-done} question${qN-done===1?"":"s"}.</b> Go back and answer ${qN-done===1?"it":"them"}, or tap the button again to hand in anyway.</div>` : ""}
     <div class="cta"><button class="btn" data-act="l-mcsubmit">Hand in my test (${done}/${qN} answered)</button></div>`;
@@ -156,7 +156,7 @@ function testBody(x, L){
   const typed = x.typed || {};
   return `${x.status==="redo"?`<div class="banner"><b>Your teacher asked you to redo this.</b> ${esc(x.feedback||"")} Fix your answers and hand in again.</div>`:timerBar(x, left, "Finish the line you are on and hand in now.")}
   <article class="notes">${L.testIntro||""}</article>
-  ${items.map(it=>it.head ? `<div class="notes">${it.head}</div>` : `<div class="panel tqa"><div class="tq"><b>${it.n}.</b> ${it.q}</div>
+  ${items.map(it=>it.head ? `<div class="notes">${it.head}</div>` : isRem(it.q) ? REMOVED(it.n) : `<div class="panel tqa"><div class="tq"><b>${it.n}.</b> ${it.q}</div>
     <textarea data-ta="${it.n}" rows="${qMax(it.q)>=3?6:4}" placeholder="Type your answer and working here" aria-label="Answer to question ${it.n}">${esc(typed[it.n]||"")}</textarea></div>`).join("")}
   <p class="muted" id="lsaved" style="font-size:14px">Your typed answers save automatically.</p>
   <h2 class="h2s" id="lup">Wrote on paper? Upload photos (optional)</h2>
@@ -168,7 +168,7 @@ function testBody(x, L){
 }
 function typedList(x, L){
   const t = x.typed || {}; if(!typedCount(x)) return "";
-  return `<h3 class="h2s">Your typed answers</h3><div class="qlist">${lessonTestItems(L).filter(it=>!it.head).map(it=>`<div class="qi"><div class="qq"><b>${it.n}.</b> ${esc(qText(it.q))}</div><div class="typed">${t[it.n]&&t[it.n].trim()?esc(t[it.n]):`<span class="muted">No typed answer</span>`}</div></div>`).join("")}</div>`;
+  return `<h3 class="h2s">Your typed answers</h3><div class="qlist">${lessonTestItems(L).filter(it=>!it.head && !isRem(it.q)).map(it=>`<div class="qi"><div class="qq"><b>${it.n}.</b> ${esc(qText(it.q))}</div><div class="typed">${t[it.n]&&t[it.n].trim()?esc(t[it.n]):`<span class="muted">No typed answer</span>`}</div></div>`).join("")}</div>`;
 }
 function timeLeft(x, L){ return Math.max(0, Math.round(L.minutes*60 - usedMs(x)/1000)); }
 function lessonTest(x, L){
@@ -189,7 +189,7 @@ function lessonTest(x, L){
     <div class="cta"><button class="btn" data-act="l-resume">▶ Carry on with the test</button></div>`;
   return `${x.status==="redo"?`<div class="banner"><b>Your teacher asked you to redo this.</b> ${esc(x.feedback||"")} Fix your work, take new photos and submit again.</div>`
     : `<div class="timer ${left===0?"over":""}" aria-live="polite"><span>⏱</span><b id="ltimer">${left===0?"Time is up":mm(left)}</b><span class="muted">${left===0?"Put your pen down and upload your pages.":"left"}</span>${left>0?`<button class="btn ghost small" data-act="l-pause">⏸ Pause</button>`:""}</div>${x.pauses?`<p class="muted" style="font-size:14px;margin:-4px 0 10px">You have ${pauseNote(x)}.</p>`:""}`}
-  <article class="notes ltest">${L.testIntro}${items.map(it=>it.head ? it.head : `<p class="tq"><b>${it.n}.</b> ${it.q}</p>`).join("")}</article>
+  <article class="notes ltest">${L.testIntro}${items.map(it=>it.head ? it.head : isRem(it.q) ? `<p class="tq"><b>${it.n}.</b> <i>Your teacher removed this question. Skip it.</i></p>` : `<p class="tq"><b>${it.n}.</b> ${it.q}</p>`).join("")}</article>
   <h2 class="h2s" id="lup">Upload your written work</h2>
   ${pages.length?`<div class="banner"><b>Not handed in yet.</b> When all your pages are added, press <b>Submit my test</b> at the bottom, or your teacher won't get your work.</div>`:""}
   <p class="muted">Take a clear, well-lit photo of each page, in order. Make sure the whole page is in the photo and the writing is sharp.</p>
@@ -204,11 +204,13 @@ function pageStrip(x, canRemove){
   return `<div class="pages">${pages.map((p,i)=>`<figure>${pageImg(p,i)}<figcaption>Page ${i+1}${canRemove?` · <button class="linkbtn" data-act="l-rmpage" data-p="${p}">Remove</button>`:""}</figcaption></figure>`).join("")}</div>`;
 }
 /* ----- marks per question ----- */
-const qMax = q => { const m = String(q).match(/\((\d+)\)\s*$/); return m ? +m[1] : 1; };
+const isRem = q => String(q).startsWith("⊘"), unrem = q => String(q).replace(/^⊘/,"");
+const REMOVED = n => `<div class="panel lq removedq"><b>${n}.</b> <i>Your teacher removed this question. Skip it.</i></div>`;
+const qMax = q => { if(isRem(q)) return 0; const m = String(q).match(/\((\d+)\)\s*$/); return m ? +m[1] : 1; };
 const qText = q => String(q).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
 function qBreakdown(x, L){
   const qm = x.qmarks || {}; if(!Object.keys(qm).length) return "";
-  const items = lessonTestItems(L).filter(it=>!it.head), qn = x.qnotes || {};
+  const items = lessonTestItems(L).filter(it=>!it.head && !isRem(it.q)), qn = x.qnotes || {};
   const right = items.filter(it=>qm[it.n]===qMax(it.q)).length, wrong = items.filter(it=>qm[it.n]===0).length, part = items.length - right - wrong;
   return `<h3 class="h2s" style="margin-top:18px">Every question: what you got right and wrong</h3>
   <div class="qkey"><span class="qk good">✔ ${right} right</span>${part?`<span class="qk part">½ ${part} partly right</span>`:""}<span class="qk bad">✗ ${wrong} wrong or not answered</span></div>
@@ -223,7 +225,7 @@ function yourAnswer(x, L, n, label){
   const t = (x.typed||{})[n]; return t && t.trim() ? `<div class="qyour"><b>${label}:</b><div class="typed">${esc(t)}</div></div>` : "";
 }
 function qMarkRows(x, L){
-  const items = lessonTestItems(L).filter(it=>!it.head), qm = x.qmarks || {}, qn = x.qnotes || {};
+  const items = lessonTestItems(L).filter(it=>!it.head && !isRem(it.q)), qm = x.qmarks || {}, qn = x.qnotes || {};
   return `<h3 style="margin:4px 0 0">Mark each question</h3>
   <p class="muted" style="margin:0;font-size:14px">Tap the mark for each question. The total adds up by itself. The student and parent will see every question, your comment and the correct answer.</p>
   <div class="qmark">${items.map(it=>{ const mx = qMax(it.q);
@@ -436,10 +438,12 @@ function reportBanner(){
 
 /* ---------- teacher side ---------- */
 function vTeacher(){
+  if(S.ttpl) return vTEdit(null, {id:"tpl", lessonKey:S.ttpl, custom:tplOf(S.ttpl)});
+  if(S.tprev) return vTPreview(S.tprev);
   const studs = allStudents(), lessons = allLessons(), toMark = lessons.filter(o=>o.x.status==="submitted" || notSent(o.x));
   const opts = studs.map((s,i)=>`<option value="${i}">${esc(s.l.name)} (Grade ${gradeLabel(s.l.grade)}) · ${esc(s.fam)}</option>`).join("");
   const sel = studs[+(S.tstud||0)];
-  const lopts = Object.entries(LESSONS).filter(([k,L])=>!sel || +sel.l.grade===L.grade).map(([k,L])=>`<label class="chk"><input type="checkbox" name="t-lesson" value="${k}"><span>${esc(L.title)}<small class="muted">${L.kind?`${L.kind==="mc"?"Multiple choice, marked automatically":"Show your method, you mark it"} · ${L.minutes} min · ${L.outOf} marks`:`Lesson: notes, examples, practice and a ${L.minutes}-min test`}</small></span></label>`).join("");
+  const lopts = Object.entries(LESSONS).filter(([k,L])=>!sel || +sel.l.grade===L.grade).map(([k,L])=>`<label class="chk"><input type="checkbox" name="t-lesson" value="${k}" ${(S.tgive||[]).includes(k)?"checked":""}><span>${esc(L.title)}<small class="muted">${L.kind?`${L.kind==="mc"?"Multiple choice, marked automatically":"Show your method, you mark it"} · ${L.minutes} min · ${L.outOf} marks`:`Lesson: notes, examples, practice and a ${L.minutes}-min test`}${tplOf(k)?" · <b>edited by you</b>":""}</small><span class="chklinks"><button type="button" class="linkbtn" data-act="t-prev" data-k="${k}">Open</button><button type="button" class="linkbtn" data-act="t-tpl" data-k="${k}">Edit</button></span></span></label>`).join("");
   return `${S.family&&S.family.teacher?"":crumbs([{act:"parent",label:"Parent"},{label:"Teacher"}])}
   <h1 class="pagetitle">Teacher</h1>
   ${reportBanner()}
@@ -500,7 +504,7 @@ function vTMark(){
   </form>
   <h2 class="h2s">More</h2>
   <details class="more"><summary>Memo (answers for marking)</summary><ol class="memo">${L.memo.map(m=>`<li>${esc(m)}</li>`).join("")}</ol></details>
-  ${L.kind?"":`<div class="row" style="margin:14px 0"><button class="btn" data-act="t-edit">✏️ Edit this lesson</button></div>`}
+  <div class="row" style="margin:14px 0"><button class="btn" data-act="t-edit">✏️ Edit this ${L.kind?"test":"lesson"}</button></div>
   <details class="more" ${L.kind?"hidden":""}><summary>See the lesson as the student sees it</summary><article class="notes"><p class="muted">${esc(L.intro)}</p>${L.notes}<h2>Worked examples</h2>${L.examples}<h2>Practice</h2><ol>${L.practice.map(q=>`<li>${esc(q.q)}<br><span class="muted">Hint: ${esc(q.h)}</span></li>`).join("")}</ol><h2>Test</h2>${L.testIntro}${lessonTestItems(L).map(t=>t.head?t.head:`<p><b>${t.n}.</b> ${esc(t.q)}</p>`).join("")}</article></details>
   <h2 class="h2s">Message to the student</h2>
   <form class="form" id="msgForm"><label for="t-editmsg">Change the message they see at the top of the lesson<textarea id="t-editmsg" rows="2" maxlength="300">${esc(x.msg||"")}</textarea></label><div><button class="btn ghost" type="submit">Save message</button></div></form>
@@ -509,21 +513,50 @@ function vTMark(){
   ${S.tdel===x.id?`<div class="row"><button class="btn ghost danger" data-act="t-delyes" data-c="${code}" data-id="${esc(x.id)}">Yes, delete it</button><button class="btn ghost" data-act="t-delno">Cancel</button></div>`:`<div><button class="btn ghost danger" data-act="t-del" data-id="${esc(x.id)}">Delete lesson</button></div>`}`;
 }
 
+/* ---------- library: open or edit a lesson/test before giving it ---------- */
+const tplOf = key => ((S.templates||[]).find(t=>t.id===key) || {}).custom;
+function previewBody(L){
+  const items = lessonTestItems(L);
+  if(L.kind==="mc") return `<article class="notes">${L.intro}</article><h2 class="h2s">Questions (correct answer ticked)</h2>
+    ${items.map(it=>it.head ? `<div class="notes">${it.head}</div>` : (q=>`<div class="panel lq ${q.removed?"removedq":""}">${q.removed?`<span class="pill p-bad">Removed</span>`:""}<div class="tq"><b>${it.n}.</b> ${unrem(it.q)}</div><div class="opts">${q.o.map((o,oi)=>`<div class="opt ${oi===q.a?"right":""}"><span class="k">${"ABCD"[oi]}</span><span>${esc(o)}${oi===q.a?" ✔":""}</span></div>`).join("")}</div>${q.e?`<p class="muted" style="font-size:14px;margin:6px 0 0">${esc(q.e)}</p>`:""}</div>`)(mcQs(L)[it.n-1])).join("")}`;
+  const qs = items.map(it=>it.head ? `<div class="notes">${it.head}</div>` : `<div class="panel lq ${isRem(it.q)?"removedq":""}">${isRem(it.q)?`<span class="pill p-bad">Removed</span>`:""}<div class="tq"><b>${it.n}.</b> ${unrem(it.q)}</div><p class="qans" style="margin:6px 0 0"><b>Memo:</b> ${esc(L.memo[it.n-1]||"")}</p></div>`).join("");
+  if(L.kind) return `<article class="notes">${L.intro}</article><h2 class="h2s">Questions and memo</h2>${qs}`;
+  return `<p class="muted">${esc(L.intro)}</p><article class="notes">${L.notes}<h2>Worked examples</h2>${L.examples}<h2>Practice</h2><ol>${L.practice.map(q=>`<li>${esc(q.q)}<br>${q.o.map((o,oi)=>`${"ABCD"[oi]}. ${esc(o)}${oi===q.a?" ✔":""}`).join(" · ")}<br><span class="muted">Hint: ${esc(q.h)}</span></li>`).join("")}</ol><h2>Test</h2>${L.testIntro||""}</article>${qs}`;
+}
+function vTPreview(key){
+  const L = lessonOf({lessonKey:key, custom:tplOf(key)}); if(!L){ S.tprev = null; return vTeacher(); }
+  return `${crumbs([...(S.family&&S.family.teacher?[]:[{act:"parent",label:"Parent"}]),{act:"teacher",label:"Teacher"},{label:"Open"}])}
+  <span class="eyebrow">${esc(sname(L.subject, L.grade))} · ${L.kind?(L.kind==="mc"?"multiple-choice test, marked automatically":"show-your-method test, you mark it"):"lesson"} · ${L.minutes} min · ${L.outOf} marks</span>
+  <h1 class="pagetitle">${esc(L.title)}</h1>
+  ${tplOf(key)?`<div class="banner">You have edited this ${L.kind?"test":"lesson"}. Your version is what students get from now on.</div>`:""}
+  <div class="row" style="gap:8px;flex-wrap:wrap;margin:0 0 14px"><button class="btn" data-act="t-tpl" data-k="${key}">✏️ Edit</button><button class="btn ghost" data-act="t-give" data-k="${key}">Give to a student</button><button class="btn ghost" data-act="t-prevclose">Back</button></div>
+  ${previewBody(L)}
+  <div class="row" style="gap:8px;flex-wrap:wrap;margin:16px 0"><button class="btn" data-act="t-tpl" data-k="${key}">✏️ Edit</button><button class="btn ghost" data-act="t-give" data-k="${key}">Give to a student</button></div>`;
+}
+
 /* ---------- lesson editor (teacher) ---------- */
 const TB = `<div class="etools"><button type="button" data-act="t-fmt" data-f="bold"><b>B</b></button><button type="button" data-act="t-fmt" data-f="italic"><i>I</i></button><button type="button" data-act="t-fmt" data-f="h2">Heading</button><button type="button" data-act="t-fmt" data-f="insertUnorderedList">• List</button><button type="button" data-act="t-fmt" data-f="insertOrderedList">1. List</button></div>`;
 function vTEdit(code, x){
-  const L = lessonOf(x), st = allStudents().find(s=>s.code===code && s.l.id===x.learnerId);
+  const L = lessonOf(x), st = code ? allStudents().find(s=>s.code===code && s.l.id===x.learnerId) : null, tpl = !code, what = L.kind ? "test" : "lesson";
   let n = 0;
   const testRows = L.test.map((t,i)=> t.startsWith("<h3>")
     ? (t.includes("<svg") ? `<div class="ehead">${t}<p class="muted" style="font-size:13px">This graph can't be edited here.</p></div>`
        : `<div class="ehead"><div class="edit small" contenteditable="true" data-ti="${i}">${t}</div></div>`)
-    : `<label>Question ${++n}<textarea rows="2" data-ti="${i}">${esc(t)}</textarea></label>`).join("");
-  return `${crumbs([...(S.family&&S.family.teacher?[]:[{act:"parent",label:"Parent"}]),{act:"teacher",label:"Teacher"},{label:"Edit lesson"}])}
-  <h1 class="pagetitle">Edit lesson</h1>
-  <p class="muted">Changes apply only to the copy you gave ${esc(st?st.l.name:"this student")}. Tap into any text to change it, then press <b>Save changes</b> at the bottom.</p>
+    : `<div class="efs ${isRem(t)?"removedq":""}"><label>Question ${++n}<textarea rows="2" data-ti="${i}">${esc(unrem(t))}</textarea></label><label class="rmq"><input type="checkbox" data-rm="${i}" ${isRem(t)?"checked":""}> Remove this question</label></div>`).join("");
+  const mcRows = L.kind==="mc" ? L.mc.map((q,i)=>{ if(q.head) return (q.head.includes("<svg") ? `<div class="ehead">${q.head}</div>` : `<div class="ehead"><div class="edit small" contenteditable="true" data-mh="${i}">${q.head}</div></div>`);
+    return `<fieldset class="efs ${q.removed?"removedq":""}"><legend>Question ${++n}</legend>
+      <label class="rmq"><input type="checkbox" data-rm="${i}" ${q.removed?"checked":""}> Remove this question</label>
+      <label>Question<textarea rows="2" data-mq="${i}">${esc(qText(q.q))}</textarea></label>
+      ${q.o.map((o,j)=>`<label class="eopt"><input type="radio" name="ma${i}" value="${j}" ${q.a===j?"checked":""} aria-label="Correct answer"> <input data-mo="${i}-${j}" value="${esc(o)}" aria-label="Option ${"ABCD"[j]}"></label>`).join("")}
+      <p class="muted" style="font-size:13px;margin:0">Tick the circle next to the correct answer.</p>
+      <label>Explanation shown after marking<input data-me="${i}" value="${esc(q.e||"")}"></label></fieldset>`; }).join("") : "";
+  return `${crumbs([...(S.family&&S.family.teacher?[]:[{act:"parent",label:"Parent"}]),{act:"teacher",label:"Teacher"},{label:`Edit ${what}`}])}
+  <h1 class="pagetitle">Edit ${what}</h1>
+  <p class="muted">${tpl ? `Your changes apply to every copy you give <b>from now on</b>. Copies you already gave keep their own version: edit those under All lessons → Open.` : `Changes apply only to the copy you gave ${esc(st?st.l.name:"this student")}.`} Tap into any text to change it, then press <b>Save changes</b> at the bottom.</p>
   <form class="form wide" id="editForm">
     <label for="e-title">Title<input id="e-title" maxlength="140" value="${esc(L.title)}"></label>
-    <label for="e-intro">Introduction<textarea id="e-intro" rows="3">${esc(L.intro)}</textarea></label>
+    ${L.kind ? `<h2 class="h2s">Instructions</h2>${TB}<div class="edit notes" id="e-introh" contenteditable="true">${L.intro}</div>` : `<label for="e-intro">Introduction<textarea id="e-intro" rows="3">${esc(L.intro)}</textarea></label>`}
+    ${L.kind==="mc" ? `<h2 class="h2s">Questions</h2>${mcRows}` : L.kind ? `<h2 class="h2s">Questions</h2><p class="muted" style="font-size:14px;margin:0">Keep the marks in brackets at the end of each question, for example (2). The app uses them to add up the total.</p>${testRows}<h2 class="h2s">Memo (only you see this)</h2>${L.memo.map((m,i)=>`<label>Answer ${i+1}<textarea rows="2" data-mi="${i}">${esc(m)}</textarea></label>`).join("")}` : `
     <h2 class="h2s">Notes</h2>${TB}<div class="edit notes" id="e-notes" contenteditable="true">${L.notes}</div>
     <h2 class="h2s">Worked examples</h2>${TB}<div class="edit notes" id="e-examples" contenteditable="true">${L.examples}</div>
     <h2 class="h2s">Practice questions</h2>
@@ -535,7 +568,7 @@ function vTEdit(code, x){
       <label>Explanation shown after answering<input data-pe="${i}" value="${esc(q.e||"")}"></label></fieldset>`).join("")}
     <h2 class="h2s">Test</h2>${testRows}
     <h2 class="h2s">Memo (only you see this)</h2>
-    ${L.memo.map((m,i)=>`<label>Answer ${i+1}<textarea rows="2" data-mi="${i}">${esc(m)}</textarea></label>`).join("")}
+    ${L.memo.map((m,i)=>`<label>Answer ${i+1}<textarea rows="2" data-mi="${i}">${esc(m)}</textarea></label>`).join("")}`}
     <div class="row sticky-save"><button class="btn" type="submit">Save changes</button><button class="btn ghost" type="button" data-act="t-editno">Cancel</button></div>
     ${x.custom?`<p class="muted" style="font-size:14px">Want the original back? <button type="button" class="linkbtn danger" data-act="t-editreset">Undo all my changes</button></p>`:""}
   </form>`;
@@ -543,6 +576,17 @@ function vTEdit(code, x){
 function cleanHtml(h){ const d = document.createElement("div"); d.innerHTML = h; d.querySelectorAll("script,style,iframe,object").forEach(n=>n.remove()); d.querySelectorAll("*").forEach(n=>[...n.attributes].forEach(a=>{ if(/^on/i.test(a.name) || /javascript:/i.test(a.value)) n.removeAttribute(a.name); })); return d.innerHTML; }
 function readEdits(x){
   const L = LESSONS[x.lessonKey], q = s => document.querySelector(s), all = s => [...document.querySelectorAll(s)];
+  if(L.kind==="mc"){
+    const cur = lessonOf(x);
+    return { title: q("#e-title").value.trim() || L.title, intro: cleanHtml(q("#e-introh").innerHTML), removed: all("[data-rm]:checked").map(el=>+el.dataset.rm),
+      mc: cur.mc.map((it,i)=> it.head ? (q(`[data-mh="${i}"]`) ? {head:cleanHtml(q(`[data-mh="${i}"]`).innerHTML)} : null)
+        : {q:q(`[data-mq="${i}"]`).value.trim(), o:it.o.map((_,j)=>q(`[data-mo="${i}-${j}"]`).value.trim()), a:+(q(`input[name="ma${i}"]:checked`)?.value ?? it.a), e:q(`[data-me="${i}"]`).value.trim()}) };
+  }
+  if(L.kind){
+    const test = lessonOf(x).test.slice();
+    all("[data-ti]").forEach(el=>{ const i = +el.dataset.ti; test[i] = el.tagName==="TEXTAREA" ? el.value.trim() : cleanHtml(el.innerHTML); });
+    return { title: q("#e-title").value.trim() || L.title, intro: cleanHtml(q("#e-introh").innerHTML), test, removed: all("[data-rm]:checked").map(el=>+el.dataset.rm), memo: all("[data-mi]").map(el=>el.value.trim()) };
+  }
   const test = L.test.slice(); const cur = lessonOf(x);
   cur.test.forEach((t,i)=>test[i]=t);
   all("[data-ti]").forEach(el=>{ const i = +el.dataset.ti; test[i] = el.tagName==="TEXTAREA" ? el.value.trim() : cleanHtml(el.innerHTML); });
@@ -550,7 +594,7 @@ function readEdits(x){
     title: q("#e-title").value.trim() || L.title, intro: q("#e-intro").value.trim(),
     notes: cleanHtml(q("#e-notes").innerHTML), examples: cleanHtml(q("#e-examples").innerHTML),
     practice: L.practice.map((p,i)=>({q:q(`[data-pq="${i}"]`).value.trim(), o:p.o.map((_,j)=>q(`[data-po="${i}-${j}"]`).value.trim()), a:+(q(`input[name="pa${i}"]:checked`)?.value ?? p.a), h:q(`[data-ph="${i}"]`).value.trim(), e:q(`[data-pe="${i}"]`).value.trim()})),
-    test, memo: all("[data-mi]").map(el=>el.value.trim())
+    test, removed: all("[data-rm]:checked").map(el=>+el.dataset.rm), memo: all("[data-mi]").map(el=>el.value.trim())
   };
 }
 
@@ -602,7 +646,7 @@ document.addEventListener("click", e=>{
     x.attempts = [...(x.attempts||[]), {mark:x.mark, outOf:L.outOf, pct:Math.round(x.mark/L.outOf*100), at:x.markedAt||Date.now(), pauses:x.pauses||0}];
     ["answers","typed","qmarks","qnotes","mark","testStartedAt","submittedAt","markedAt","pausedAt","pausedMs","pauses","feedback","method","neatness","autoMarked","submittedBy"].forEach(k=>delete x[k]);
     x.pages = []; x.status = "assigned"; x.retakenAt = Date.now(); S.mcconfirm = false; saveLesson(S.code, x); render(); window.scrollTo(0,0); }
-  else if(act==="l-mcsubmit"){ const x = curLesson(), L = lessonOf(x), done = Object.keys(x.answers||{}).length, n = mcQs(L).length;
+  else if(act==="l-mcsubmit"){ const x = curLesson(), L = lessonOf(x), qs = mcQs(L), done = Object.keys(x.answers||{}).filter(k=>qs[k-1] && !qs[k-1].removed).length, n = qs.filter(q=>!q.removed).length;
     if(done<n && !S.mcconfirm){ S.mcconfirm = true; const y = window.scrollY; render(); window.scrollTo(0, y); return; }
     S.mcconfirm = false; submitMC(x, L); render(); window.scrollTo(0,0); }
   else if(act==="l-hand"){ const x = curLesson(); readTyped(x);
@@ -618,7 +662,12 @@ document.addEventListener("click", e=>{
   else if(act==="t-chip"){ const ta = document.getElementById("m-fb"); ta.value = (ta.value ? ta.value.trim()+" " : "") + b.dataset.t; }
   else if(act==="t-redo"){ const {code,id} = S.tsel, x = findLesson(code,id); { const {qm, qn} = readQMarks(); x.qmarks = qm; x.qnotes = qn; } x.status = "redo"; x.feedback = document.getElementById("m-fb").value.trim(); x.method = document.getElementById("m-method").value; x.neatness = document.getElementById("m-neat").value; saveLesson(code, x); go("teacher"); S.note = "Sent back for redoing."; render(); }
   else if(act==="t-edit"){ S.tedit = S.tsel && S.tsel.id; render(); window.scrollTo(0,0); }
-  else if(act==="t-editno"){ S.tedit = null; render(); window.scrollTo(0,0); }
+  else if(act==="t-editno"){ if(S.ttpl){ S.tprev = S.ttpl; S.ttpl = null; } S.tedit = null; render(); window.scrollTo(0,0); }
+  else if(act==="t-prev"){ e.preventDefault(); S.tprev = b.dataset.k; S.ttpl = null; render(); window.scrollTo(0,0); }
+  else if(act==="t-prevclose"){ S.tprev = null; render(); document.getElementById("assignForm")?.scrollIntoView({block:"start"}); }
+  else if(act==="t-tpl"){ e.preventDefault(); S.ttpl = b.dataset.k; S.tprev = null; render(); window.scrollTo(0,0); }
+  else if(act==="t-give"){ S.tgive = [b.dataset.k]; S.tprev = null; render(); document.getElementById("assignForm")?.scrollIntoView({block:"start"}); }
+  else if(act==="t-editreset" && S.ttpl){ famRef.collection("templates").doc(S.ttpl).delete().catch(()=>{}); S.tprev = S.ttpl; S.ttpl = null; S.note = "Back to the original version."; render(); window.scrollTo(0,0); }
   else if(act==="t-editreset"){ const {code,id} = S.tsel, x = findLesson(code,id); delete x.custom; saveLesson(code, x); S.tedit = null; S.note = "The lesson is back to the original."; render(); window.scrollTo(0,0); }
   else if(act==="t-fmt"){ e.preventDefault(); const f = b.dataset.f; if(f==="h2") document.execCommand("formatBlock", false, "h3"); else document.execCommand(f); }
   else if(act==="t-q"){ const n = b.dataset.n; b.parentNode.querySelectorAll("button").forEach(o=>o.classList.toggle("on", o===b));
@@ -681,9 +730,9 @@ document.addEventListener("submit", async e=>{
     const msg = document.getElementById("t-msg").value.trim(); let given = 0, had = [];
     keys.forEach((key,i)=>{
       if(lessonsOf(s.code).some(o=>o.learnerId===s.l.id && o.lessonKey===key && o.status!=="marked")){ had.push(LESSONS[key].title); return; }
-      saveLesson(s.code, {id:uid(), learnerId:s.l.id, lessonKey:key, msg, assignedAt:Date.now()+i, status:"assigned", ex:{}, pages:[]}); given++;
+      const t = tplOf(key); saveLesson(s.code, {id:uid(), learnerId:s.l.id, lessonKey:key, msg, assignedAt:Date.now()+i, status:"assigned", ex:{}, pages:[], ...(t?{custom:t}:{})}); given++;
     });
-    S.note = `${given?`Gave ${given} to ${s.l.name}. They'll see ${given===1?"it":"them"} on their home screen.`:""}${had.length?` ${s.l.name} already has ${had.length===1?"this one":"these"} and hasn't finished: ${had.join("; ")}.`:""}`.trim(); render();
+    S.tgive = []; S.note = `${given?`Gave ${given} to ${s.l.name}. They'll see ${given===1?"it":"them"} on their home screen.`:""}${had.length?` ${s.l.name} already has ${had.length===1?"this one":"these"} and hasn't finished: ${had.join("; ")}.`:""}`.trim(); render();
   }
   if(e.target.id==="linkForm"){
     e.preventDefault();
@@ -693,6 +742,12 @@ document.addEventListener("submit", async e=>{
     try{ const d = await famDoc(code).get(); if(!d.exists){ S.note = "No family found with that code. Check it and try again."; render(); return; } }
     catch(err){ S.note = "Couldn't check that code. Check your connection."; render(); return; }
     famRef.collection("links").doc(code).set({label, at:Date.now()}); S.note = "Family linked. Their learners now appear in the student list."; render();
+  }
+  if(e.target.id==="editForm" && S.ttpl){
+    e.preventDefault();
+    const key = S.ttpl, custom = readEdits({lessonKey:key, custom:tplOf(key)});
+    famRef.collection("templates").doc(key).set({custom, at:Date.now()}).catch(()=>{ S.note = "Your changes didn't save. Check your connection."; render(); });
+    S.ttpl = null; S.tprev = key; S.note = "Saved. Students get your version every time you give it from now on."; render(); window.scrollTo(0,0); return;
   }
   if(e.target.id==="editForm"){
     e.preventDefault();

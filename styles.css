@@ -429,3 +429,8 @@ i.h1{background:var(--h1)!important} i.h2{background:var(--h2)!important} i.h3{b
 .repcard textarea{width:100%;box-sizing:border-box;font:inherit;font-size:15px;line-height:1.4;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink,inherit)}
 .repcard .form{max-width:none;padding:0;border:0;background:none}
 .wmsel select{display:block;width:100%;margin-top:4px;min-height:44px;font:inherit;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:var(--surface);color:var(--ink,inherit)}
+.chklinks{display:flex;gap:14px;margin-top:4px}.chklinks .linkbtn{font-size:14px;font-weight:700}
+.removedq{opacity:.6;border-style:dashed}
+.removedq textarea,.removedq input:not([type=checkbox]){text-decoration:line-through}
+.rmq{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:var(--bad)}
+.rmq input{width:20px;height:20px}

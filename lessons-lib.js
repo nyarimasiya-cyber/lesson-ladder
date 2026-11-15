@@ -273,9 +273,17 @@ function lessonTestItems(L){ let n = 0; return L.test.map(t => t.startsWith("<h3
 function lessonOf(x){
   const B = LESSONS[x.lessonKey]; if(!B) return null;
   const c = x.custom || {};
+  const rem = new Set(c.removed||[]);   /* questions the teacher removed: kept in place (so numbering never shifts) but not asked or marked */
+  if(B.mc){
+    const mc = B.mc.map((q,i)=>(c.mc||[])[i] ? {...q, ...c.mc[i]} : q).map((q,i)=>!q.head && rem.has(i) ? {...q, removed:true} : q);
+    return {...B, title:c.title||B.title, intro:c.intro??B.intro, mc, test:mc.map(q=>q.head||(q.removed?"⊘"+q.q:q.q)), outOf:mc.filter(q=>!q.head && !q.removed).length,
+      memo:mc.filter(q=>!q.head).map(q=>`${"ABCD"[q.a]}. ${q.o[q.a]}${q.e?`. ${q.e}`:""}`)};
+  }
   return {...B, title:c.title||B.title, intro:c.intro??B.intro, notes:c.notes??B.notes, examples:c.examples??B.examples,
     practice:(B.practice||[]).map((p,i)=>({...p, ...((c.practice||[])[i]||{})})),
-    test:(B.test||[]).map((t,i)=>(c.test||[])[i] ?? t), memo:(B.memo||[]).map((m,i)=>(c.memo||[])[i] ?? m)};
+    test:(B.test||[]).map((t,i)=>(c.test||[])[i] ?? t).map((t,i)=>rem.has(i) && !t.startsWith("<h3>") ? "⊘"+t : t),
+    outOf: (B.outOf||0) - (B.test||[]).reduce((sum,t,i)=>{ if(!rem.has(i) || t.startsWith("<h3>")) return sum; const m = String((c.test||[])[i] ?? t).match(/\((\d+)\)\s*$/); return sum + (m ? +m[1] : 1); }, 0),
+    memo:(B.memo||[]).map((m,i)=>(c.memo||[])[i] ?? m)};
 }
 
 /* Timed tests with no notes.

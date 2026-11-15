@@ -75,11 +75,11 @@ function startFirebase(){
 }
 function openFamily(code){
   unsubs.forEach(u=>u()); unsubs=[];
-  S.code = code; S.learners=[]; S.attempts=[]; S.reads=[]; S.lessons=[]; S.links=[]; S.reports=[];
+  S.code = code; S.learners=[]; S.attempts=[]; S.reads=[]; S.lessons=[]; S.links=[]; S.reports=[]; S.templates=[];
   famRef = fs.collection("families").doc(code);
   S.parentOk = pref.get("ll-parent-device")===code;
   unsubs.push(famRef.onSnapshot(d=>{ S.family = d.exists ? d.data() : null; softRender(); }, onDbError));
-  ["learners","attempts","reads","lessons","links","reports"].forEach(kind=>{
+  ["learners","attempts","reads","lessons","links","reports","templates"].forEach(kind=>{
     unsubs.push(famRef.collection(kind).onSnapshot(snap=>{
       S[kind] = snap.docs.map(d=>({id:d.id, ...d.data()}));
       if(kind==="links" && typeof syncLinks==="function") syncLinks();
@@ -811,7 +811,7 @@ function render(){
   if(draft){ const i=document.getElementById("new-name"); if(i) i.value=draft; }
 }
 setInterval(()=>{ const el=document.getElementById("mocktime"); if(el && S.quiz && S.quiz.started) el.textContent = mm(Math.floor((Date.now()-S.quiz.started)/1000)); }, 1000);
-function softRender(){ if(S.view==="quiz" || S.view==="write" || S.tedit){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select,textarea")) { nav(); return; } render(); }
+function softRender(){ if(S.view==="quiz" || S.view==="write" || S.tedit || S.ttpl){ nav(); return; } if(document.activeElement && document.activeElement.matches("input,select,textarea")) { nav(); return; } render(); }
 function go(view){ S.view=view; S.note=""; render(); window.scrollTo(0,0); }
 
 /* ---------- quizzes ---------- */
