@@ -357,63 +357,69 @@ function repRange(code, lid){
 function buildReport(code, k, note){
   const f = famOf(code); if(!f) return "";
   return withFam(f, ()=>{
-    const r = repOf(code, k.id), [from, to] = repRange(code, k.id), toEnd = new Date(to); toEnd.setHours(23,59,59,999);
-    const days = daysBetween(from, to), periodDays = days.length;
-    const ev = eventsFor(k.id).filter(e=>e.at >= new Date(from).setHours(0,0,0,0) && e.at <= toEnd.getTime());
-    const c = dayCounts(k.id), wm = r.withMe;   /* wm: weekday he spends with the teacher, who makes him work */
-    const sup = d => wm!=null && wm!=="" && d.getDay()===+wm, wdName = wm!=null && wm!=="" ? ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][+wm] : "";
+    const r = repOf(code, k.id), [from, to] = repRange(code, k.id);
+    const t0 = new Date(from).setHours(0,0,0,0), t1 = new Date(to).setHours(23,59,59,999), inP = t => t && t >= t0 && t <= t1;
+    const days = daysBetween(from, to), periodDays = days.length, endsToday = isoDay(to)===isoDay(new Date());
+    const ev = eventsFor(k.id).filter(e=>inP(e.at));
+    const c = {}; ev.forEach(e=>{ const key = dayKey(e.at); c[key] = (c[key]||0) + 1; });
+    const wm = r.withMe, sup = d => wm!=null && wm!=="" && d.getDay()===+wm;
+    const wd = wm!=null && wm!=="" ? ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][+wm] : "";
     const ownDays = days.filter(d=>!sup(d)), active = ownDays.filter(d=>c[dayKey(d)]).length;
     const supDays = days.filter(sup), supDone = supDays.filter(d=>c[dayKey(d)]).length;
     const share = ownDays.length ? active/ownDays.length : 0, aim = Math.max(1, Math.round(ownDays.length*5/6));
-    const own = wdName ? " on his own" : "";
-    const ov = share>=2/3 ? ["good",`Practising regularly${own}`] : share>=1/3 ? ["warn",`Some practice${own}`] : active ? ["bad",`Very little practice${own}`] : ["bad",`No practice${own}`];
-    const mark = d => sup(d) ? (c[dayKey(d)]?"👩‍🏫":"❌") : c[dayKey(d)]?"✅":"❌";
-    const grid = periodDays<=14 ? days.map(d=>`${d.toLocaleDateString("en-ZA",{weekday:"short", day:"numeric"})} ${mark(d)}`).join("  ")
-      : (()=>{ const wk = []; for(let i=0;i<days.length;i+=7){ const part = days.slice(i,i+7), o = part.filter(d=>!sup(d)); wk.push(`• Week from ${dayName(part[0])}: ${o.filter(d=>c[dayKey(d)]).length} of ${o.length} days${wdName?` on his own${part.some(sup)?`, ${part.filter(sup).some(d=>c[dayKey(d)])?"worked":"did not work"} with me`:""}`:""}`); } return "\n"+wk.join("\n"); })();
-    const byDay = {}; ev.forEach(e=>{ const key = dayKey(e.at); (byDay[key] = byDay[key] || []).push(e); });
-    const did = Object.keys(byDay).sort().map(key=>{ const evs = byDay[key], sum = daySummary(evs), les = evs.filter(e=>e.kind==="lesson");
-      return `• ${dayName(keyDate(key))}${sup(keyDate(key))?" (with me)":""}: ${[sum, ...les.map(e=>`handed in ${e.title.split(" · ")[0]}${e.score?` (${e.score})`:""}`)].filter(Boolean).join(" · ")}`; });
-    const les = S.lessons.filter(x=>x.learnerId===k.id && LESSONS[x.lessonKey]).sort((a,b)=>a.assignedAt-b.assignedAt);
-    const short = x => lessonOf(x).title.split(" · ")[0] + (lessonOf(x).kind ? "" : " lesson");
-    const marked = les.filter(x=>x.status==="marked").map(x=>{ const p = lessonPct(x), tag = p<PASS?"❌ FAIL":p<GOAL?"⚠️ Pass, below the 80% goal":"✅ Goal reached";
-        return `• ${short(x)}: ${x.mark}/${lessonOf(x).outOf} (${p}%) ${tag}${(x.attempts||[]).length?` · attempt ${x.attempts.length+1}, earlier ${x.attempts.map(a=>a.pct+"%").join(", ")}`:""}`; });
-    const waiting = les.filter(x=>x.status==="submitted").map(x=>`• ${short(x)}: handed in, waiting for marking`);
-    const going = les.filter(x=>x.status==="started" || x.status==="redo" || notSent(x)).map(x=>`• ${short(x)}: ${x.status==="redo"?"sent back for corrections, not redone yet":"started but not handed in"}`);
-    const notStarted = les.filter(x=>x.status==="assigned" && !notSent(x));
-    const lastOwn = eventsFor(k.id).find(e=>!sup(new Date(e.at))), agoN = lastOwn ? Math.floor((new Date().setHours(0,0,0,0) - new Date(lastOwn.at).setHours(0,0,0,0))/86400000) : null;
-    const lastAgo = agoN==null ? "never" : agoN===0 ? "today" : agoN===1 ? "yesterday" : `${agoN} days ago`;
-    const fails = les.filter(x=>x.status==="marked" && lessonPct(x)<PASS).length;
-    const advice = ov[0]==="good" && !notStarted.length && !fails ? `${k.name} is working well${wdName?" on his own as well as with me":""}. Please encourage him to keep going: regular practice is what moves marks.`
-      : `${wdName && ov[0]!=="good" ? `${k.name} only works properly on ${wdName}s, when he is with me and I make him do it. That is not enough to pass. ` : ""}${k.name} needs to use the app every day at home for at least 30 minutes${notStarted.length?`, start the ${notStarted.length} test${notStarted.length===1?"":"s"} he hasn't opened`:""}${fails?`, and retake the test${fails===1?"":"s"} he failed`:""}. The goal is 80% this term, and marks will not improve without practice. Please check that he does this.`;
+    const verdict = share>=2/3 ? "✅ *Practising regularly*" : share>=1/3 ? "⚠️ *Some practice, not enough*" : active ? "❌ *Very little practice*" : "❌ *No practice at all*";
+    const mk = d => sup(d) ? (c[dayKey(d)]?"👩‍🏫":"❌") : c[dayKey(d)]?"✅":"❌";
+    const grid = periodDays<=14 ? days.map(d=>`${d.toLocaleDateString("en-ZA",{weekday:"short"})} ${mk(d)}`).join(" ")
+      : (()=>{ const w = []; for(let i=0;i<days.length;i+=7){ const o = days.slice(i,i+7).filter(d=>!sup(d)); w.push(`${o.filter(d=>c[dayKey(d)]).length}/${o.length}`); } return `Days on his own, week by week: ${w.join(" · ")}`; })();
+    /* subjects worked on in the period */
+    const subj = {}; ev.forEach(e=>{ const [main, part] = (e.subject||"Other").replace("Mathematics","Maths").split(": "); const x = subj[main] = subj[main] || {d:new Set(), parts:new Set()}; x.d.add(dayKey(e.at)); if(part) x.parts.add(part); });
+    const subjLines = Object.entries(subj).sort((a,b)=>b[1].d.size-a[1].d.size).map(([n,x])=>`• ${n}${x.parts.size?` (${[...x.parts].join(", ")})`:""}: ${x.d.size} day${x.d.size===1?"":"s"}`);
+    /* teacher's work, as it stood at the end of the period */
+    const at = (t) => t && t <= t1;
+    const les = S.lessons.filter(x=>x.learnerId===k.id && LESSONS[x.lessonKey] && (inP(x.assignedAt) || inP(x.testStartedAt) || inP(x.submittedAt) || inP(x.markedAt) || (x.attempts||[]).some(a=>inP(a.at))));
+    const short = x => lessonOf(x).kind ? lessonOf(x).title.split(" · ")[0] : lessonOf(x).title.split(":")[0] + " lesson";
+    const doneL = [], waitL = [], goingL = [], notL = [];
+    les.forEach(x=>{
+      if(at(x.markedAt) && x.status==="marked"){ const p = lessonPct(x); doneL.push(`${p<PASS?"❌":p<GOAL?"⚠️":"✅"} ${short(x)}: ${p}%${p<PASS?" FAIL":""}${(x.attempts||[]).filter(a=>at(a.at)).length?` (try ${x.attempts.filter(a=>at(a.at)).length+1})`:""}`); }
+      else if((x.attempts||[]).some(a=>inP(a.at))){ const a = x.attempts.filter(a=>at(a.at)).pop(); doneL.push(`${a.pct<PASS?"❌":a.pct<GOAL?"⚠️":"✅"} ${short(x)}: ${a.pct}%${a.pct<PASS?" FAIL":""}`); }
+      else if(at(x.submittedAt)) waitL.push(short(x));
+      else if(at(x.testStartedAt)) goingL.push(short(x));
+      else if(at(x.assignedAt)) notL.push(short(x));
+    });
+    /* "Maths Test 2, Maths Test 3" -> "Maths Tests 2, 3" */
+    const group = list => { const g = {}, rest = []; list.forEach(t=>{ const m = t.match(/^(.*) Test (\d+)$/); if(m) (g[m[1]] = g[m[1]] || []).push(m[2]); else rest.push(t); });
+      return [...Object.entries(g).map(([n,nums])=>nums.length>1 ? `${n} Tests ${nums.join(", ")}` : `${n} Test ${nums[0]}`), ...rest].join("; "); };
+    const fails = doneL.filter(l=>l.startsWith("❌")).length;
+    const todo = [];
+    if(share < 2/3) todo.push(`work at home every day for 30 minutes`);
+    if(notL.length) todo.push(notL.length===1 ? `start the test he hasn't opened` : `start the ${notL.length} tests he hasn't opened`);
+    if(goingL.length) todo.push(`finish what he started`);
+    if(fails) todo.push(`retake the failed test${fails===1?"":"s"}`);
+    const lastOwn = eventsFor(k.id).find(e=>!sup(new Date(e.at)) && e.at <= t1), agoN = lastOwn ? Math.floor((new Date().setHours(0,0,0,0) - new Date(lastOwn.at).setHours(0,0,0,0))/86400000) : null;
     return [
-`*Lesson Ladder: progress report for ${k.name}* (Grade ${gradeLabel(k.grade)})`,
-`Period: ${dayName(from)} to ${dayName(to)} (${periodDays} day${periodDays===1?"":"s"})`,
+`*${k.name}: progress report*`,
+`${dayName(from)} to ${dayName(to)}`,
 ``,
-`*Practice: ${ov[0]==="good"?"✅":ov[0]==="warn"?"⚠️":"❌"} ${ov[1]}*`,
-...(wdName ? [
-`${wdName}s he is with me and I make him work, so ${wdName}s are not counted as his own practice.`,
-`Days he worked *on his own* at home: *${active} of ${ownDays.length}* (we aim for at least ${aim})`,
-supDays.length ? `${wdName} sessions with me: ${supDone} of ${supDays.length}` : null
-] : [
-`Days he used the app: *${active} of ${periodDays}* (we aim for at least ${aim})`]),
-wdName ? `Last time he worked on his own: *${lastAgo}*` : `Last activity: ${lastAgo}`,
-`Day by day: ${grid}`,
-wdName ? `(✅ worked on his own · 👩‍🏫 worked with me · ❌ nothing)` : null,
+verdict,
+`On his own: *${active} of ${ownDays.length} days* (aim ${aim})`,
+supDays.length ? `${wd}s with me: ${supDone} of ${supDays.length}${supDone?" 👩‍🏫":""}` : null,
+grid,
+endsToday && agoN!=null && agoN>1 ? `Last worked on his own ${agoN} days ago.` : endsToday && agoN==null ? `He has not worked on his own yet.` : null,
 ``,
-`*What he did*`,
-did.length ? did.join("\n") : `Nothing. He did not open his work in this period.`,
+`*Subjects*`,
+subjLines.length ? subjLines.join("\n") : `None. No work done in this period.`,
 ``,
-`*Tests and lessons from his teacher (as of today)*`,
-...(marked.length ? marked : []),
-...waiting, ...going,
-notStarted.length ? `🚫 *Not started yet (${notStarted.length}):* ${notStarted.map(short).join(", ")}` : (les.length ? "All work given has been started." : "No tests or lessons given yet."),
+(doneL.length || waitL.length || goingL.length || notL.length) ? `*Tests from me*` : null,
+...doneL,
+waitL.length ? `⏳ Waiting for marking: ${group(waitL)}` : null,
+goingL.length ? `✏️ Started, not finished: ${group(goingL)}` : null,
+notL.length ? `🚫 Not started: ${group(notL)}` : null,
+(doneL.length || waitL.length || goingL.length || notL.length) ? `` : null,
+note && note.trim() ? `*Note:* ${note.trim()}\n` : null,
+todo.length ? `*He needs to:* ${todo.join(", ")}. Goal: 80%.` : `*Well done.* Please encourage him to keep going.`,
 ``,
-note && note.trim() ? `*Teacher's note:* ${note.trim()}\n` : null,
-`*What he needs to do*`,
-advice,
-``,
-`Open the app to see everything he did, day by day: ${location.origin}${location.pathname.replace(/index\.html$/,"")}`
-    ].filter(l=>l!==null).join("\n");
+`Details: ${location.origin}${location.pathname.replace(/index\.html$/,"")}`
+    ].filter(l=>l!==null).join("\n").replace(/\n{3,}/g,"\n\n");
   });
 }
 function reportsSection(){
