@@ -412,9 +412,10 @@ function buildReport(code, k, note){
       const bySub = {}; mine.forEach(e=>{ const sub = (e.subject||"Other").replace("Mathematics","Maths").replace("Social Sciences: ",""); (bySub[sub] = bySub[sub] || []).push(`${e.label}${e.title?`: ${e.title}`:""}${e.score?` (${e.score})`:""}`); });
       const subLines = Object.entries(bySub).map(([n,list])=>`• *${n}*: ${[...new Set(list)].join("; ")}`);
       const all = ev.slice().sort((a,b)=>a.at-b.at);
+      const dStart = new Date(d).setHours(0,0,0,0), first = all.length ? Math.min(...all.map(e=>e.start && e.start>=dStart ? e.start : e.at)) : 0, lastT = all.length ? all[all.length-1].at : 0;
       return [
 `*${k.name}: work on ${dayName(d)}*`,
-all.length ? `${sup(d) ? "👩‍🏫 Worked with me" : "✅ Worked on his own"}, ${tm(all[0].at)===tm(all[all.length-1].at) ? `at ${tm(all[0].at)}` : `between ${tm(all[0].at)} and ${tm(all[all.length-1].at)}`}` : null,
+all.length ? `${sup(d) ? "👩‍🏫 Worked with me" : "✅ Worked on his own"}, ${tm(first)===tm(lastT) ? `at ${tm(first)}` : `between ${tm(first)} and ${tm(lastT)}`}` : null,
 ``,
 subLines.length ? subLines.join("\n") : (doneL.length || waitL.length ? null : `No work was done on this day.`),
 doneL.length || waitL.length ? `` : null,

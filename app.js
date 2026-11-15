@@ -91,6 +91,7 @@ function onDbError(e){ S.note = "Progress can't be loaded right now ("+(e && e.c
 
 /* Writes are queued offline by Firestore and sync when the device is back online. */
 function write(kind, id, data){
+  if((kind==="attempts" || kind==="reads") && data && data.learnerId && data.startedAt==null && S.actStart && S.actLearner===data.learnerId && Date.now() - S.actStart < 6*3600000) data = {...data, startedAt:S.actStart};
   famRef.collection(kind).doc(id).set(data).catch(()=>{ S.note = "A result didn't save. Check your connection."; render(); });
 }
 
@@ -705,12 +706,12 @@ function evOf(a){
   const its = itemsOf(a), sc = its.length ? `${its.filter(x=>x.ok).length}/${its.length}` : (a.total ? `${a.score}/${a.total} first try` : "");
   const label = {notes:"Read the notes", practice:"Did practice", topic:"Test", chapter:"Chapter test", review:"Weak-spot practice", mock:"Mock exam"}[k] || "Activity";
   const msub = k==="mock" ? sname(a.subject, a.grade) : "";
-  return {at:a.at, kind:k, label, subject: k==="review" ? "Mixed subjects" : (k==="mock" ? msub : sub), title: k==="review" ? "Weak-spot practice" : k==="mock" ? `Mock Paper ${a.paper||1}: `+msub : (t?.title || ""), score: (k==="topic"||k==="chapter"||k==="review"||k==="mock") ? sc : (k==="practice" && a.total ? sc : "")};
+  return {at:a.at, start:a.startedAt, kind:k, label, subject: k==="review" ? "Mixed subjects" : (k==="mock" ? msub : sub), title: k==="review" ? "Weak-spot practice" : k==="mock" ? `Mock Paper ${a.paper||1}: `+msub : (t?.title || ""), score: (k==="topic"||k==="chapter"||k==="review"||k==="mock") ? sc : (k==="practice" && a.total ? sc : "")};
 }
 function eventsFor(lid){
   const reads = S.reads.filter(r=>r.learnerId===lid && r.at && TOPIC[r.topicId]);
   const atts = S.attempts.filter(a=>a.learnerId===lid && a.at);
-  const les = (S.lessons||[]).filter(x=>x.learnerId===lid && x.submittedAt && typeof LESSONS==="object" && lessonOf(x)).map(x=>({at:x.submittedAt, kind:"lesson", label:"Teacher lesson test handed in", subject:sname(lessonOf(x).subject, lessonOf(x).grade), title:lessonOf(x).title, score: x.status==="marked" ? `${x.mark}/${lessonOf(x).outOf}` : ""}));
+  const les = (S.lessons||[]).filter(x=>x.learnerId===lid && x.submittedAt && typeof LESSONS==="object" && lessonOf(x)).map(x=>({at:x.submittedAt, start:x.testStartedAt, kind:"lesson", label:"Teacher lesson test handed in", subject:sname(lessonOf(x).subject, lessonOf(x).grade), title:lessonOf(x).title, score: x.status==="marked" ? `${x.mark}/${lessonOf(x).outOf}` : ""}));
   return [...reads, ...atts].map(evOf).concat(les).sort((a,b)=>b.at-a.at);
 }
 const eventsIn = (lid,p) => { const from = periodStart(p).getTime(); return eventsFor(lid).filter(e=>e.at>=from); };
@@ -873,6 +874,8 @@ function finishQuiz(){
 document.addEventListener("click", async e=>{
   const b = e.target.closest("[data-act]"); if(!b) return;
   const act = b.dataset.act, l = learner();
+  if(l && !/^(parent|p[A-Z]|pchild|psub|pterm|pact|pday|teacher|tmark|auth|pick)/.test(S.view||"") && !/^(parent|teacher|t-|p-|pkid|lock)/.test(act)){
+    const now = Date.now(); if(!S.actStart || S.actLearner!==l.id || now - (S.lastTap||0) > 30*60000){ S.actStart = now; S.actLearner = l.id; } S.lastTap = now; }
   if(act==="install"){ if(installEvt){ installEvt.prompt(); await installEvt.userChoice.catch(()=>{}); installEvt=null; nav(); } }
   else if(act==="authtab"){ S.authTab=b.dataset.tab; render(); }
   else if(act==="copycode"){
