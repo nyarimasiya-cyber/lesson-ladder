@@ -396,3 +396,40 @@ M("What is the best way to fix a deficit?","Cut unnecessary spending or earn mor
 M("Which is a LONG-TERM saving goal?","paying for studies after school",["buying airtime tomorrow","buying lunch next week","buying a pen"],"Long-term goals take years to reach."),
 M("Why should needs come first in a budget?","Needs are things we must have, like food and shelter.",["Needs are always cheaper than wants.","Wants are not allowed in a budget.","Needs give the family more income."],"Pay for needs first, then wants if there is money left.")
   ], 13)});
+
+/* ===================== HISTORY REVISION WORKSHEET (teacher's handout) ===================== */
+defineTest("g7-his-rev1", {grade:7, subject:"ss", kind:"written", minutes:30, outOf:30,
+  title:"History revision questions · The eastern frontier",
+  intro:`<p>Revision questions on the eastern frontier (textbook pages 182–188). <b>Answer in full sentences.</b> Use the notes first, then try to answer from memory.</p><ul><li>Write the date and heading.</li><li>Number each answer clearly.</li><li>Use capital letters for names and places.</li><li>Answer in full sentences unless asked to name or list items.</li><li>Leave a line between answers and check spelling.</li></ul>`,
+  test:[
+"According to the school source, which two European countries were the main trading nations in the early 19th century? (2)",
+"What goods were exchanged between the settlers and the Xhosa, according to the school source? (2)",
+"When did the British arrive at the Cape, according to the school source? (1)",
+"Where did the British settlers settle when they came to the Cape? (1)",
+"Why did the British come to the Cape? (2)",
+"Explain what a frontier is. (2)",
+"Give two reasons why land was important during the frontier wars. (2)",
+"Give two reasons why conflict occurred between the Xhosa and white settlers. (2)",
+"How did the Xhosa traditionally use and share land? (2)",
+"Why were cattle important to the Xhosa? Give two reasons. (2)",
+"Who was Chief Maqoma, and why did he resist British rule? (3)",
+"What was the purpose of the neutral zone created in 1819, and why did it anger the Xhosa? (3)",
+"Name two things the British built or established to strengthen their control in the Eastern Cape. (2)",
+"Explain one way in which trade created co-operation and one way in which land disputes created conflict. (4)"
+  ],
+  memo:[
+"Britain ✔ and France ✔ were the main trading nations.",
+"They traded cattle ✔, goods (e.g. beads, cloth, metal) and information ✔.",
+"The British seized the Cape in 1806 ✔.",
+"On the eastern frontier, in what is today the Eastern Cape (the Zuurveld, near Grahamstown) ✔.",
+"The Cape was an important resting point on the sea route from Europe to the East ✔; Britain wanted to control it and keep it from France, its rival in trade ✔.",
+"A frontier is a border between territories that can move ✔, an area where different groups meet and compete for land and resources ✔.",
+"Any two: land was needed for grazing cattle; for growing crops; for water; cattle (wealth) depended on land; more settlers needed more farms ✔✔.",
+"Any two: cattle theft; arguments about boundaries; the need for more land; the British pushing the Xhosa off their land ✔✔.",
+"The land belonged to the whole community ✔; the chief gave families land to use for homes and crops, and grazing was shared, so land could not be bought or sold ✔.",
+"Cattle gave milk and meat; they showed a person's wealth; they were used for lobola and ceremonies (any two) ✔✔.",
+"He was a Xhosa chief, a son of Ngqika ✔. He resisted because the British took his people's land ✔ (they were expelled from the Kat River valley in 1829) and he wanted to protect it ✔.",
+"Purpose: to keep the Xhosa and the colonists apart between the Fish and Keiskamma rivers, so that there would be peace on the frontier ✔. It angered the Xhosa because it was their land ✔, and they were no longer allowed to live or graze cattle there ✔.",
+"Any two: forts / military posts; signal towers; Grahamstown as military headquarters; more soldiers and officials ✔✔.",
+"Co-operation: trade let both sides get what they needed, e.g. the Xhosa traded cattle and ivory for beads, cloth and metal ✔✔. Conflict: both sides wanted the same grazing land, which led to cattle raids, boundary arguments and war ✔✔."
+  ]});
