@@ -405,6 +405,27 @@ function buildReport(code, k, note){
     /* "Maths Test 2, Maths Test 3" -> "Maths Tests 2, 3" */
     const group = list => { const g = {}, rest = []; list.forEach(t=>{ const m = t.match(/^(.*) Test (\d+)$/); if(m) (g[m[1]] = g[m[1]] || []).push(m[2]); else rest.push(t); });
       return [...Object.entries(g).map(([n,nums])=>nums.length>1 ? `${n} Tests ${nums.join(", ")}` : `${n} Test ${nums[0]}`), ...rest].join("; "); };
+    if(periodDays===1){
+      /* one day: only what was done, nothing about what wasn't */
+      const d = days[0], mine = ev.filter(e=>e.kind!=="lesson").sort((a,b)=>a.at-b.at), link = `${location.origin}${location.pathname.replace(/index\.html$/,"")}`;
+      const tm = t => new Date(t).toLocaleTimeString("en-ZA",{hour:"2-digit", minute:"2-digit"});
+      const bySub = {}; mine.forEach(e=>{ const sub = (e.subject||"Other").replace("Mathematics","Maths").replace("Social Sciences: ",""); (bySub[sub] = bySub[sub] || []).push(`${e.label}${e.title?`: ${e.title}`:""}${e.score?` (${e.score})`:""}`); });
+      const subLines = Object.entries(bySub).map(([n,list])=>`• *${n}*: ${[...new Set(list)].join("; ")}`);
+      const all = ev.slice().sort((a,b)=>a.at-b.at);
+      return [
+`*${k.name}: work on ${dayName(d)}*`,
+all.length ? `${sup(d) ? "👩‍🏫 Worked with me" : "✅ Worked on his own"}, ${tm(all[0].at)===tm(all[all.length-1].at) ? `at ${tm(all[0].at)}` : `between ${tm(all[0].at)} and ${tm(all[all.length-1].at)}`}` : null,
+``,
+subLines.length ? subLines.join("\n") : (doneL.length || waitL.length ? null : `No work was done on this day.`),
+doneL.length || waitL.length ? `` : null,
+doneL.length || waitL.length ? `*Tests*` : null,
+...doneL,
+waitL.length ? `⏳ Handed in, waiting for marking: ${group(waitL)}` : null,
+note && note.trim() ? `\n*Note:* ${note.trim()}` : null,
+``,
+`Details: ${link}`
+      ].filter(l=>l!==null).join("\n").replace(/\n{3,}/g,"\n\n");
+    }
     const fails = doneL.filter(l=>l.startsWith("❌")).length;
     const todo = [];
     if(share < 2/3) todo.push(`work at home every day for 30 minutes`);
@@ -448,7 +469,7 @@ function reportsSection(){
         : `<form class="form" data-repform="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}"><label>Parent's WhatsApp number, with country code<input name="phone" inputmode="tel" placeholder="e.g. +27 82 123 4567" value="${r.phone?"+"+esc(r.phone):""}"></label><div><button class="btn ghost" type="submit">Save number</button></div></form>`}
       ${r.phone ? `<label class="muted wmsel" style="font-size:14px">Day ${esc(s.l.name)} is with you (you make him work, so it isn't counted as his own practice)<select data-wm="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}"><option value="">None</option>${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((d,i)=>`<option value="${i}" ${r.withMe!=null&&r.withMe!==""&&+r.withMe===i?"selected":""}>${d}</option>`).join("")}</select></label>` : ""}
       ${r.phone ? (open ? `<div class="repdates"><label>From<input type="date" id="rep-from" value="${isoDay(rf)}" max="${isoDay(new Date())}"></label><label>To<input type="date" id="rep-to" value="${isoDay(rt)}" max="${isoDay(new Date())}"></label></div>
-        <div class="row repquick" style="flex-wrap:wrap;gap:6px">${[["7","Last 7 days"],["14","Last 2 weeks"],["month","This month"],["term","Last 3 months"]].concat(r.lastSentAt?[["last","Since last report"]]:[]).map(([v,lab])=>`<button class="chip" data-act="t-repq" data-v="${v}" data-k="${key}">${lab}</button>`).join("")}</div>
+        <div class="row repquick" style="flex-wrap:wrap;gap:6px">${[["0","Today"],["1","Yesterday"],["7","Last 7 days"],["14","Last 2 weeks"],["month","This month"],["term","Last 3 months"]].concat(r.lastSentAt?[["last","Since last report"]]:[]).map(([v,lab])=>`<button class="chip" data-act="t-repq" data-v="${v}" data-k="${key}">${lab}</button>`).join("")}</div>
         <label class="muted" style="font-size:14px">Add a note for the parent (optional)<textarea id="rep-note" rows="2" maxlength="400" placeholder="e.g. He did not open the app at all this week.">${esc(S.repNote||"")}</textarea></label>
         <button class="linkbtn" data-act="t-repbuild" data-k="${key}" data-c="${s.code}" data-l="${esc(s.l.id)}">Add note to the report</button>
         <label class="muted" style="font-size:14px">The report (you can edit it before sending)<textarea id="rep-text" rows="18">${esc(buildReport(s.code, s.l, S.repNote))}</textarea></label>
@@ -657,7 +678,7 @@ document.addEventListener("click", e=>{
   else if(act==="l-mc"){ const x = curLesson(); if(!x || x.status==="marked" || x.pausedAt) return; x.answers = {...(x.answers||{}), [b.dataset.n]: +b.dataset.o}; S.mcconfirm = false; saveLesson(S.code, x); const y = window.scrollY; render(); window.scrollTo(0, y); }
   else if(act==="t-repopen"){ S.trep = b.dataset.k; S.repNote = ""; S.repFrom = S.repTo = null; render(); document.getElementById("rep-text")?.scrollIntoView({block:"center"}); }
   else if(act==="t-repq"){ S.repNote = document.getElementById("rep-note")?.value || S.repNote || ""; const v = b.dataset.v, t = new Date(), f = new Date();
-    if(v==="7") f.setDate(t.getDate()-6); else if(v==="14") f.setDate(t.getDate()-13); else if(v==="month") f.setDate(1); else if(v==="term") f.setMonth(t.getMonth()-3);
+    if(v==="0"){} else if(v==="1"){ f.setDate(t.getDate()-1); t.setDate(t.getDate()-1); } else if(v==="7") f.setDate(t.getDate()-6); else if(v==="14") f.setDate(t.getDate()-13); else if(v==="month") f.setDate(1); else if(v==="term") f.setMonth(t.getMonth()-3);
     else if(v==="last"){ const r = (S.reports||[]).find(x=>x.id===b.dataset.k); if(r && r.lastSentAt) f.setTime(r.lastSentAt); }
     S.repFrom = isoDay(f); S.repTo = isoDay(t); render(); document.getElementById("rep-text")?.scrollIntoView({block:"center"}); }
   else if(act==="t-repclose"){ S.trep = null; render(); }
