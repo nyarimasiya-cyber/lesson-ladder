@@ -75,11 +75,11 @@ function startFirebase(){
 }
 function openFamily(code){
   unsubs.forEach(u=>u()); unsubs=[];
-  S.code = code; S.learners=[]; S.attempts=[]; S.reads=[]; S.lessons=[]; S.links=[]; S.reports=[]; S.templates=[];
+  S.code = code; S.learners=[]; S.attempts=[]; S.reads=[]; S.lessons=[]; S.links=[]; S.reports=[]; S.templates=[]; S.archive=[];
   famRef = fs.collection("families").doc(code);
   S.parentOk = pref.get("ll-parent-device")===code;
   unsubs.push(famRef.onSnapshot(d=>{ S.family = d.exists ? d.data() : null; softRender(); }, onDbError));
-  ["learners","attempts","reads","lessons","links","reports","templates"].forEach(kind=>{
+  ["learners","attempts","reads","lessons","links","reports","templates","archive"].forEach(kind=>{
     unsubs.push(famRef.collection(kind).onSnapshot(snap=>{
       S[kind] = snap.docs.map(d=>({id:d.id, ...d.data()}));
       if(kind==="links" && typeof syncLinks==="function") syncLinks();

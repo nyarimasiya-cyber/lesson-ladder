@@ -270,16 +270,19 @@ Fair: "How do you rate the tuckshop's prices? (Too expensive / About right / Che
 function lessonTestItems(L){ let n = 0; return L.test.map(t => t.startsWith("<h3>") ? {head:t} : {n:++n, q:t}); }
 
 /* A given lesson can carry the teacher's own edits (x.custom); they apply to that lesson only. */
+/* every paper shows its grade, e.g. "Grade 7 · Maths Test 1" */
+const withGrade = (t, g) => g==null || /^Grade\s/i.test(t||"") ? t : `Grade ${+g===0?"R":g} · ${t}`;
 function lessonOf(x){
-  const B = LESSONS[x.lessonKey]; if(!B) return null;
+  const B0 = LESSONS[x.lessonKey]; if(!B0) return null;
+  const B = {...B0, title:withGrade(B0.title, B0.grade)};
   const c = x.custom || {};
   const rem = new Set(c.removed||[]);   /* questions the teacher removed: kept in place (so numbering never shifts) but not asked or marked */
   if(B.mc){
     const mc = B.mc.map((q,i)=>(c.mc||[])[i] ? {...q, ...c.mc[i]} : q).map((q,i)=>!q.head && rem.has(i) ? {...q, removed:true} : q);
-    return {...B, title:c.title||B.title, intro:c.intro??B.intro, mc, test:mc.map(q=>q.head||(q.removed?"⊘"+q.q:q.q)), outOf:mc.filter(q=>!q.head && !q.removed).length,
+    return {...B, title:withGrade(c.title||B.title, B.grade), intro:c.intro??B.intro, mc, test:mc.map(q=>q.head||(q.removed?"⊘"+q.q:q.q)), outOf:mc.filter(q=>!q.head && !q.removed).length,
       memo:mc.filter(q=>!q.head).map(q=>`${"ABCD"[q.a]}. ${q.o[q.a]}${q.e?`. ${q.e}`:""}`)};
   }
-  return {...B, title:c.title||B.title, intro:c.intro??B.intro, notes:c.notes??B.notes, examples:c.examples??B.examples,
+  return {...B, title:withGrade(c.title||B.title, B.grade), intro:c.intro??B.intro, notes:c.notes??B.notes, examples:c.examples??B.examples,
     practice:(B.practice||[]).map((p,i)=>({...p, ...((c.practice||[])[i]||{})})),
     test:(B.test||[]).map((t,i)=>(c.test||[])[i] ?? t).map((t,i)=>rem.has(i) && !t.startsWith("<h3>") ? "⊘"+t : t),
     outOf: (B.outOf||0) - (B.test||[]).reduce((sum,t,i)=>{ if(!rem.has(i) || t.startsWith("<h3>")) return sum; const m = String((c.test||[])[i] ?? t).match(/\((\d+)\)\s*$/); return sum + (m ? +m[1] : 1); }, 0),
