@@ -189,7 +189,7 @@ function lessonTest(x, L){
     return `${resultBanner(x, L, (learner()||{}).name||"")}<div class="score"><div class="big">${x.mark}<small>/${L.outOf}</small></div><div><div style="font-weight:700;font-size:20px">${pct}% · Level ${level(pct)[0]}</div><div class="muted">Pass mark ${PASS}% · Goal ${GOAL}% · Marked on ${fmtDate(x.markedAt)}.</div></div></div>
     ${markSummary(x)}${qBreakdown(x, L)}${pageStrip(x)}`;
   }
-  if(x.status==="submitted") return `<div class="banner"><b>Submitted.</b> You handed in ${pages.length} page${pages.length===1?"":"s"} on ${fmtDate(x.submittedAt)}${minsTaken(x)!=null?`, after ${minsTaken(x)} minutes`:""}. Your teacher will mark it and you'll see your mark and comments here.</div>${pageStrip(x)}`;
+  if(x.status==="submitted") return `<div class="banner"><b>Submitted.</b> You handed in your test on ${fmtDate(x.submittedAt)}${minsTaken(x)!=null?`, after ${minsTaken(x)} minutes`:""}: ${typedCount(x)} typed answer${typedCount(x)===1?"":"s"} and ${pages.length} page${pages.length===1?"":"s"}. Your teacher will mark it and you'll see your mark and comments here.</div>${typedList(x, L)}${pageStrip(x)}`;
   if(!x.testStartedAt && x.status!=="redo") return `<article class="notes">${L.testIntro}</article>
     <div class="banner"><b>Method is everything.</b> Show every step. Your work must be neat.</div>
     <div class="cta"><button class="btn" data-act="l-start">Start the ${L.minutes}-minute test</button></div>
@@ -589,7 +589,9 @@ function vTMark(){
     <div class="stat"><div class="eyebrow">Pages</div><div class="v">${(x.pages||[]).length}</div></div>
   </div>
   ${pastAttempts(x, L, code)}
-  <h2 class="h2s">His written work</h2>
+  <h2 class="h2s">His work</h2>
+  ${typedCount(x)?`<div class="banner"><b>He typed ${typedCount(x)} answer${typedCount(x)===1?"":"s"} in the app.</b> Each one is shown under its question in <a href="#markhere">Mark each question</a> below, next to the memo.</div>`:(L.kind!=="mc"?`<p class="muted">He didn't type any answers in the app.</p>`:"")}
+  <h3 style="margin:10px 0 4px">Pages he uploaded</h3>
   ${(x.pages||[]).length?`<div class="pages big">${x.pages.map((p,i)=>`<figure>${pageImg(p,i)}<figcaption>Page ${i+1} · tap to enlarge · <button class="linkbtn" data-act="t-rmpage" data-p="${p}">Remove</button></figcaption></figure>`).join("")}</div>`:`<p class="muted">No pages uploaded yet.</p>`}
   ${x.submittedBy==="teacher"?`<p class="muted" style="font-size:14px">You added these pages and handed in the work for ${esc(st?st.l.name:"the student")}.</p>`:""}
   <p class="muted" style="margin:10px 0 6px">Did ${esc(st?st.l.name:"the student")} send you the photos another way, for example on WhatsApp? Save them to your phone, then add them here. This hands in the work for ${esc(st?st.l.name:"the student")}, and his parent will see it.</p>
