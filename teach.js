@@ -48,6 +48,15 @@ const lstatus = x => {
   if(x.status==="marked"){ const p = lessonPct(x); return p<PASS ? [`Fail · ${p}%`,"p-bad"] : p<GOAL ? [`Pass · ${p}%`,"p-warn"] : [`${p}% · goal reached`,"p-good"]; }
   return LSTATUS[x.status] || LSTATUS.assigned;
 };
+/* group lessons so finished and unfinished work aren't mixed together */
+const LGROUPS = [["new","🆕 Not started yet"],["prog","✏️ Started, not finished"],["wait","⏳ Handed in, waiting for marking"],["done","✅ Done and marked"]];
+const lgroup = x => x.status==="marked" ? "done" : x.status==="submitted" ? "wait" : (x.status==="assigned" && !x.testStartedAt && !Object.keys(x.ex||{}).length && !(x.pages||[]).length) ? "new" : "prog";
+function groupedLessons(list, row, wrap, foldDone){
+  return LGROUPS.map(([g,label])=>{ const xs = list.filter(x=>lgroup(x.x||x)===g); if(!xs.length) return "";
+    const head = `${label} <span class="pill ${g==="done"?"p-good":g==="wait"?"p-warn":g==="prog"?"p-warn":"p-bad"}">${xs.length}</span>`;
+    return g==="done" && foldDone ? `<details class="archbox lgrp"><summary>${head}</summary>${wrap(xs.map(row).join(""))}</details>` : `<h3 class="lgh">${head}</h3>${wrap(xs.map(row).join(""))}`;
+  }).join("");
+}
 const attemptsLine = x => (x.attempts||[]).length ? `Attempt ${x.attempts.length+1}. Earlier: ${x.attempts.map(a=>a.pct+"%").join(", ")}.` : "";
 const GOOD_MSG = [n=>`Excellent work, ${n}! You reached the 80% goal. Your hard work is paying off.`, n=>`Outstanding, ${n}! This is what putting in the work looks like. Keep it up!`, n=>`Well done, ${n}! You clearly studied for this. Keep working like this and you'll pass your exams with ease.`];
 function autoFeedback(mark, outOf, name){ const pct = Math.round(mark/outOf*100), n = name || "you";
@@ -73,11 +82,10 @@ function lessonCards(l){
   const all = (S.lessons||[]).filter(x=>x.learnerId===l.id && LESSONS[x.lessonKey]);
   if(!all.length) return "";
   /* everything still to do (in the order given), then the 3 most recently marked */
-  const todo = all.filter(x=>x.status!=="marked").sort((a,b)=>a.assignedAt-b.assignedAt), done = all.filter(x=>x.status==="marked").sort((a,b)=>(b.markedAt||0)-(a.markedAt||0)).slice(0,3);
-  const mine = [...todo, ...done];
-  return `<h2 class="h2s">📘 From your teacher ${todo.length?`<span class="pill p-warn">${todo.length} to do</span>`:""}</h2><div class="topiclist" style="margin-bottom:20px">${mine.map(x=>{ const L = lessonOf(x); const [st,cls] = lstatus(x);
+  const todo = all.filter(x=>x.status!=="marked"&&x.status!=="submitted").sort((a,b)=>a.assignedAt-b.assignedAt), rest = all.filter(x=>x.status==="marked"||x.status==="submitted").sort((a,b)=>(b.markedAt||b.submittedAt||0)-(a.markedAt||a.submittedAt||0));
+  return `<h2 class="h2s">📘 From your teacher ${todo.length?`<span class="pill p-warn">${todo.length} to do</span>`:""}</h2><div style="margin-bottom:20px">${groupedLessons([...todo, ...rest], x=>{ const L = lessonOf(x); const [st,cls] = lstatus(x);
     return `<button class="tcard" data-act="l-open" data-id="${esc(x.id)}"><span class="eyebrow">${esc(sname(L.subject, l.grade))} · ${L.kind?`test · ${L.minutes} min`:"teacher lesson"}</span><h3>${esc(L.title)}</h3>
-      <span class="meta"><span class="muted">${x.status==="marked"?`Mark: ${x.mark}/${L.outOf}`:fmtDate(x.assignedAt)}</span><span class="pill ${cls}">${st}</span></span></button>`;}).join("")}</div>`;
+      <span class="meta"><span class="muted">${x.status==="marked"?`Mark: ${x.mark}/${L.outOf}`:fmtDate(x.assignedAt)}</span><span class="pill ${cls}">${st}</span></span></button>`;}, h=>`<div class="topiclist">${h}</div>`, true)}</div>`;
 }
 function curLesson(){ return (S.lessons||[]).find(x=>x.id===S.lessonId); }
 function vLesson(){
@@ -561,8 +569,7 @@ function vTeacher(){
     <fieldset class="pickl"><legend>Lessons and tests <span class="muted">(tick one or more)</span></legend>${lopts||`<p class="muted">No lessons for this grade yet.</p>`}</fieldset>
     <label for="t-msg">Message to the student (optional)<textarea id="t-msg" rows="2" maxlength="300" placeholder="e.g. Do this before Friday. Remember: neat work and show your method."></textarea></label>
     <div><button class="btn" type="submit" ${lopts?"":"disabled"}>Give to this student</button></div></form>`:`<p class="muted">Add a learner or link a family first.</p>`}
-  ${(()=>{ const lrow = o=>{const [st,cls]=lstatus(o.x), L=lessonOf(o.x); return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${(o.x.attempts||[]).length?` · 🔁 attempt ${o.x.attempts.length+1} (before: ${o.x.attempts.map(t=>t.pct+"%").join(", ")})`:""}${(o.x.pages||[]).length?` · ${o.x.pages.length} page${o.x.pages.length===1?"":"s"} uploaded`:""}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}; const live = lessons.filter(o=>o.x.status!=="marked"), done = lessons.filter(o=>o.x.status==="marked");
-  return lessons.length?`<h2 class="h2s">Lessons in progress</h2>${live.length?`<div class="feed">${live.map(lrow).join("")}</div>`:`<p class="muted">Nothing in progress.</p>`}${done.length?`<details class="archbox"><summary>Finished and marked (${done.length})</summary><div class="feed">${done.map(lrow).join("")}</div></details>`:""}`:""; })()}
+  ${(()=>{ const lrow = o=>{const [st,cls]=lstatus(o.x), L=lessonOf(o.x); return `<div><span><b>${esc(o.l.name)}</b> · ${esc(L.title.split(":")[0])}<br><span class="muted" style="font-size:13px">Given ${fmtDate(o.x.assignedAt)}${(o.x.attempts||[]).length?` · 🔁 attempt ${o.x.attempts.length+1} (before: ${o.x.attempts.map(t=>t.pct+"%").join(", ")})`:""}${(o.x.pages||[]).length?` · ${o.x.pages.length} page${o.x.pages.length===1?"":"s"} uploaded`:""}${o.x.status==="marked"?` · ${o.x.mark}/${L.outOf}`:""}</span></span><span class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="pill ${cls}">${st}</span><button class="linkbtn" data-act="t-mark" data-c="${o.code}" data-id="${esc(o.x.id)}">${o.x.status==="submitted"?"Mark":"Open"}</button>${S.tdel===o.x.id?`<span class="delask">Delete? <button class="linkbtn danger" data-act="t-delyes" data-c="${o.code}" data-id="${esc(o.x.id)}">Yes, delete</button> <button class="linkbtn" data-act="t-delno">Cancel</button></span>`:`<button class="linkbtn danger" data-act="t-del" data-id="${esc(o.x.id)}">Delete</button>`}</span></div>`;}; return lessons.length?`<h2 class="h2s">Lessons given</h2>${groupedLessons(lessons, lrow, h=>`<div class="feed">${h}</div>`, true)}`:""; })()}
   <h2 class="h2s">Students in other families</h2>
   <p class="muted" style="margin:0 0 10px">To teach a child from another family, ask their parent for their family code (Parent → Family code on their device). Their parent will see the lessons and marks in their own app.</p>
   ${(S.links||[]).length?`<div class="feed" style="margin-bottom:12px">${S.links.map(x=>`<div><span><b>${esc(x.label||"Linked family")}</b> · ${(T.fams[x.id]?.learners||[]).map(l=>esc(l.name)).join(", ")||"loading…"}</span><button class="linkbtn" data-act="t-unlink" data-c="${x.id}">Remove</button></div>`).join("")}</div>`:""}
@@ -708,7 +715,7 @@ function readEdits(x){
 function vPLessons(k){
   const mine = (S.lessons||[]).filter(x=>x.learnerId===k.id && LESSONS[x.lessonKey]).sort((a,b)=>b.assignedAt-a.assignedAt);
   if(!mine.length) return "";
-  return `<h2 class="h2s">Lessons from the teacher</h2><div class="topiclist">${mine.map(x=>{ const L = lessonOf(x), [st,cls] = lstatus(x), ex = x.ex||{};
+  return `<h2 class="h2s">Lessons from the teacher</h2>${groupedLessons(mine, x=>{ const L = lessonOf(x), [st,cls] = lstatus(x), ex = x.ex||{};
     const open = S.plopen===x.id;
     return `<div class="tcard static"><span class="meta"><b>${esc(L.title)}</b><span class="pill ${cls}">${st}</span></span>
       <span class="muted" style="font-size:14px">Given ${fmtDate(x.assignedAt)} · ${L.kind?(L.kind==="mc"?"multiple-choice test":"written test"):`practice ${Object.values(ex).filter(Boolean).length}/5 right first time`}${minsTaken(x)!=null?` · test took ${minsTaken(x)} min${x.pauses?`, ${pauseNote(x)}`:""}`:""}${x.status==="marked"?` · <b>Mark ${x.mark}/${L.outOf} (${Math.round(x.mark/L.outOf*100)}%)</b>`:""}</span>
@@ -716,7 +723,7 @@ function vPLessons(k){
       ${x.status==="marked"||x.status==="redo" ? markSummary(x) : ""}
       ${(x.status==="marked"||x.status==="redo") && x.qmarks && Object.keys(x.qmarks).length ? `<details class="more"><summary>See every question: right and wrong</summary>${qBreakdown(x, L)}</details>` : ""}
       ${(x.pages||[]).length ? (open ? pageStrip(x) : `<button class="linkbtn" data-act="p-pages" data-id="${esc(x.id)}">See his written work (${x.pages.length} pages)</button>`) : ""}
-    </div>`;}).join("")}</div>`;
+    </div>`;}, h=>`<div class="topiclist">${h}</div>`, true)}`;
 }
 
 /* ---------- events ---------- */

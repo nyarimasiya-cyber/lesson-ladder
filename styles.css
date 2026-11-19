@@ -440,3 +440,4 @@ i.h1{background:var(--h1)!important} i.h2{background:var(--h2)!important} i.h3{b
 .attempt summary{line-height:1.4}
 
 .archbox{margin-top:10px;border:1px solid var(--line,#ddd);border-radius:12px;padding:8px 12px}.archbox>summary{cursor:pointer;font-weight:700;padding:4px 0}
+.lgh{font-size:16px;margin:16px 0 8px;display:flex;gap:8px;align-items:center}.lgrp{margin-top:16px}.lgrp>summary{font-size:16px}
