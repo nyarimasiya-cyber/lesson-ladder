@@ -418,16 +418,16 @@ function buildReport(code, k, note){
     /* teacher's work, as it stood at the end of the period */
     const at = (t) => t && t <= t1;
     const les = S.lessons.filter(x=>x.learnerId===k.id && LESSONS[x.lessonKey] && (inP(x.assignedAt) || inP(x.testStartedAt) || inP(x.submittedAt) || inP(x.markedAt) || (x.attempts||[]).some(a=>inP(a.at))));
-    const short = x => lessonOf(x).kind ? lessonOf(x).title.split(" · ")[0] : lessonOf(x).title.split(":")[0] + " lesson";
+    const noGr = t => (t||"").replace(/^Grade\s+\S+\s+·\s+/,""), short = x => lessonOf(x).kind ? noGr(lessonOf(x).title).split(" · ")[0] : noGr(lessonOf(x).title).split(":")[0] + " lesson";
     const doneL = [], waitL = [], goingL = [], notL = [];
     les.forEach(x=>{
       if(x.submittedAt && inP(x.submittedAt) && sup(new Date(x.submittedAt))) return;
       const L = lessonOf(x), qN = lessonTestItems(L).filter(it=>!it.head && !isRem(it.q)), rightOf = qm => qm ? qN.filter(it=>qm[it.n]===qMax(it.q)).length : null;
-      const ic = p => p<PASS?"❌":p<GOAL?"⚠️":"✅", one = (p, qm) => { const rt = rightOf(qm); return `${p}%${p<PASS?" FAIL":""}${rt!=null?` (${rt} of ${qN.length} right)`:""}`; };
-      const tries = (x.attempts||[]).filter(a=>inP(a.at)).map(a=>({p:a.pct, qm:a.qmarks}));
-      if(at(x.markedAt) && x.status==="marked") tries.push({p:lessonPct(x), qm:x.qmarks});
+      const ic = p => p<PASS?"❌":p<GOAL?"⚠️":"✅", one = (p, qm, m) => { const rt = L.kind==="mc" ? rightOf(qm) : null; return `${p}%${p<PASS?" FAIL":""}${rt!=null?` (${rt} of ${qN.length} right)`:m!=null&&L.outOf?` (${m} out of ${L.outOf})`:""}`; };
+      const tries = (x.attempts||[]).filter(a=>inP(a.at)).map(a=>({p:a.pct, qm:a.qmarks, m:a.mark}));
+      if(at(x.markedAt) && x.status==="marked") tries.push({p:lessonPct(x), qm:x.qmarks, m:x.mark});
       if(tries.length){ const last = tries[tries.length-1];
-        doneL.push(tries.length===1 ? `${ic(last.p)} ${short(x)}: ${one(last.p, last.qm)}` : `${ic(last.p)} ${short(x)}: ${tries.map((t,i)=>`try ${i+1} ${t.p}%`).join(" → ")}${last.p<PASS?" FAIL":""}`); }
+        doneL.push(tries.length===1 ? `${ic(last.p)} ${short(x)}: ${one(last.p, last.qm, last.m)}` : `${ic(last.p)} ${short(x)}: ${tries.map((t,i)=>`try ${i+1} ${t.p}%`).join(" → ")}${last.p<PASS?" FAIL":""}`); }
       else if(at(x.submittedAt)) waitL.push(short(x));
       else if(at(x.testStartedAt)) goingL.push(short(x));
       else if(at(x.assignedAt)) notL.push(short(x));
