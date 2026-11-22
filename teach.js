@@ -237,7 +237,7 @@ function qBreakdown(x, L){
     return `<div class="qi ${cls}"><div class="qtop"><span class="qic" aria-hidden="true">${ic}</span><span class="qq"><b>${it.n}.</b> ${esc(qText(it.q))}</span><span class="qm">${g==null?"–":g}/${mx}</span></div>
       ${yourAnswer(x, L, it.n, "Your answer")}
       ${qn[it.n]?`<p class="qnote"><b>Teacher:</b> ${esc(qn[it.n])}</p>`:""}
-      ${g!==mx && L.memo[it.n-1]?`<p class="qans"><b>Correct answer:</b> ${esc(L.kind==="mc" ? (q=>`${"ABCD"[optOrder(x,it.n).indexOf(q.a)]}. ${q.o[q.a]}. ${q.e||""}`)(mcQs(L)[it.n-1]) : L.memo[it.n-1].split(" WHOLE TEST:")[0])}</p>`:""}</div>`;}).join("")}</div>`;
+      ${g!==mx && L.memo[it.n-1]?`<p class="qans"><b>${L.memoLabel||"Correct answer"}:</b> ${esc(L.kind==="mc" ? (q=>`${"ABCD"[optOrder(x,it.n).indexOf(q.a)]}. ${q.o[q.a]}. ${q.e||""}`)(mcQs(L)[it.n-1]) : L.memo[it.n-1].split(" WHOLE TEST:")[0])}</p>`:""}</div>`;}).join("")}</div>${L.model?`<details class="more" open><summary>📖 Model answer: study this</summary><article class="notes">${L.model}</article></details>`:""}`;
 }
 function yourAnswer(x, L, n, label){
   if(L.kind==="mc"){ const a = (x.answers||{})[n], q = mcQs(L)[n-1], ord = optOrder(x, n); return `<p class="qyour"><b>${label}:</b> ${a==null?`<span class="muted">Not answered</span>`:esc(`${"ABCD"[ord.indexOf(a)]}. ${q.o[a]}`)}</p>`; }
