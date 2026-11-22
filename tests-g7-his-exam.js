@@ -1,0 +1,98 @@
+/* Grade 7 History exam revision (Term 4): co-operation and conflict on the frontiers of the Cape Colony.
+   Part A: 30 multiple-choice questions, marked automatically. Part B: 20 written questions, marked by the teacher. */
+
+defineTest("g7-his-exam-a", {grade:7, subject:"his", kind:"mc", minutes:30,
+  title:"History exam revision · Part A · 30 multiple-choice questions",
+  intro:`<p>Key question for the term: <b>How did co-operation and conflict shape the frontiers of the Cape Colony in the early 19th century?</b></p>`+MC_INTRO("the frontiers of the Cape Colony: the British at the Cape, the eastern frontier and the Frontier Wars, Chief Maqoma, soldiers and officials, the Tswana on the northern frontier, missionaries and traders, and Robert Moffat at Kuruman"),
+  mc:placeMC([
+M("A frontier is …","a border area between territories that can move, where different groups meet and compete for land",["a fixed line that never changes","a river that cannot be crossed","a town built by missionaries"],"Frontiers move as groups gain or lose land."),
+M("In which year did the British take the Cape from the Dutch?","1806",["1652","1820","1873"],"The British seized the Cape in 1806."),
+M("Why did Britain want control of the Cape?","It was an important stop on the sea route from Europe to the East.",["It had gold mines.","It was the capital of the Dutch empire.","The Xhosa invited them."],"Ships stopped there for water, food and repairs."),
+M("Which country was Britain's main rival for trade and colonies in the early 1800s?","France",["Portugal","Germany","Spain"],"Britain and France were the main trading nations."),
+M("The British settlers arrived on the eastern frontier in …","1820",["1806","1811","1857"],"The 1820 Settlers."),
+M("For the Xhosa, wealth was measured by …","the number of cattle a person had",["the amount of gold they owned","the size of their house","the number of guns they had"],"Cattle were their most precious possession."),
+M("Which of these is an example of CO-OPERATION on the eastern frontier?","trading cattle and ivory for beads, cloth and metal",["cattle raids","arguments about boundaries","the Frontier Wars"],"Trade is working together."),
+M("Which was a cause of conflict on the eastern frontier?","disagreements over land, cattle and boundaries",["the translation of the Bible","trade in beads","the building of schools"],"Both sides needed the same land and water."),
+M("How many Frontier Wars were fought between 1779 and 1879?","nine",["three","five","twelve"],"About 100 years of conflict."),
+M("Which was an effect of the Frontier Wars?","deaths, destruction of farms, loss of cattle and movement of people",["more land for the Xhosa","the end of all trade","peace for 100 years"],"Remember D-D-L-M."),
+M("In 1811 Colonel John Graham …","drove the Xhosa beyond the Fish River",["founded Kuruman","translated the Bible into Setswana","led the Batlhaping at Dithakong"],"He was sent to secure the Zuurveld."),
+M("The Zuurveld lay between …","the Sundays River and the Great Fish River",["the Orange River and the Vaal River","Cape Town and Stellenbosch","Kuruman and Dithakong"],"This was the land Graham was sent to secure."),
+M("Grahamstown was established in 1812 as …","the British military headquarters on the frontier",["a mission station","a Tswana stone city","a Xhosa royal village"],"It was named after Colonel Graham."),
+M("Along the Fish River the British built …","forts, military posts and signal towers",["mission stations and churches","stone cities","dams"],"To secure the border."),
+M("Chief Maqoma was …","a Xhosa leader who fought to protect his people's land",["a British colonel","a missionary from Scotland","a Griqua horseman"],"He was a son of Ngqika."),
+M("In 1829 Maqoma and his people were expelled from …","the Kat River valley",["Kuruman","Robben Island","Grahamstown"],"This made him a determined enemy of colonial rule."),
+M("Maqoma led resistance against the British in the Frontier War of …","1850–1853",["1779–1781","1806","1899–1902"],"He fought in the forests and valleys of the Fish River."),
+M("Guerrilla warfare means …","a smaller group using sudden surprise attacks against a bigger army",["two armies fighting in open lines","a war at sea","a peace agreement"],"Maqoma's fighters hid in the bush and attacked suddenly."),
+M("Where did Maqoma die in 1873?","as a prisoner on Robben Island",["in battle at the Fish River","in Kuruman","in Britain"],"He is remembered as a hero of African resistance."),
+M("British officials who came to the Eastern Cape built …","schools, banks, shops and hospitals",["stone cities","mission stations only","forts only"],"This brought more people to trade in the towns."),
+M("Colonel Harry Smith fought against the Xhosa chief …","Hintsa",["Mzilikazi","Adam Kok","Moffat"],"From 1834 to 1836."),
+M("Which two towns are named after Harry Smith and his wife Juana?","Harrismith and Ladysmith",["Grahamstown and Kuruman","Durban and Pietermaritzburg","Kimberley and Bloemfontein"],"Their names live on in frontier towns."),
+M("The three Tswana chiefdoms in the notes are the …","Batlhaping, Barolong and Batlhare",["Xhosa, Zulu and Sotho","Griqua, Korana and Khoikhoi","Ndebele, Swazi and Venda"],"The Tswana were split into chiefdoms."),
+M("The Tswana lived in …","large cities made of stone",["tents made of skins","wooden huts on stilts","caves only"],"The stone walls still remain today."),
+M("The Tswana traded ivory, cattle skins and feathers for …","guns and shop-bought goods",["land","cattle only","stone"],"They traded with European traders and the Griqua."),
+M("Missionaries came to the Cape mainly to …","convert people to Christianity and improve their living conditions",["fight in the Frontier Wars","mine gold","buy cattle"],"From the 1790s onwards."),
+M("Why did many farmers see missionaries as enemies?","Missionaries wanted equal laws for everyone, and workers left farms for mission stations.",["Missionaries stole cattle.","Missionaries refused to build schools.","Missionaries supported the Frontier Wars."],"Farmers lost workers."),
+M("Robert Moffat set up a mission station at Kuruman for the …","Batlhaping",["Xhosa","Ndebele","Griqua"],"In 1821."),
+M("Robert Moffat finished translating the whole Bible into …","Setswana, in 1857",["isiXhosa, in 1820","Afrikaans, in 1806","English, in 1873"],"He fully mastered Setswana."),
+M("At the Battle of Dithakong (1823), the Batlhaping won because …","Moffat called Griqua horsemen with guns to help them",["the British army fought for them","Maqoma's fighters helped them","their enemy surrendered before the battle"],"Adam Kok brought over 100 armed men on horseback.")
+  ], 3)});
+
+defineTest("g7-his-exam-b", {grade:7, subject:"his", kind:"written", minutes:60, outOf:50,
+  title:"History exam revision · Part B · Written answers and paragraph",
+  intro:`<p>Key question for the term: <b>How did co-operation and conflict shape the frontiers of the Cape Colony in the early 19th century?</b></p>
+<p>This is a <b>60-minute</b> test, out of <b>50 marks</b>. Your teacher marks it.</p>
+<ul><li><b>Answer every question in full sentences.</b> Start with the words of the question. One-word answers do not get full marks.</li>
+<li>The marks are in brackets, for example (3). Give one explained fact for every mark.</li>
+<li>Use capital letters for names and places: Maqoma, Kuruman, the Xhosa, the British.</li>
+<li>Question 20 is a paragraph. Plan it first: one opening sentence, examples of co-operation, examples of conflict, and a closing sentence.</li>
+<li>You can type your answers in the app or write on paper and upload photos of your pages.</li></ul>`,
+  test:[
+"<h3>Section A: Key words</h3>",
+"Explain what a frontier is. (2)",
+"Explain what guerrilla warfare is. (2)",
+"What is an intermediary? Give an example of who acted as an intermediary on the northern frontier. (2)",
+"<h3>Section B: The eastern frontier</h3>",
+"Why did the British want to control the Cape in the early 19th century? (2)",
+"Give three causes of conflict between the Xhosa, the trekboers and the British on the eastern frontier. (3)",
+"Why were cattle so important to the Xhosa? (2)",
+"Name four effects of the Frontier Wars. (4)",
+"Give two examples of co-operation between the Xhosa and the settlers. (2)",
+"What did Colonel John Graham do in 1811, and what was the result? (2)",
+"<h3>Section C: Chief Maqoma</h3>",
+"Why did Maqoma become a determined enemy of colonial rule? (2)",
+"Explain why guerrilla warfare helped Maqoma defeat much larger British armies. (2)",
+"<h3>Section D: The northern frontier</h3>",
+"Name the three Tswana chiefdoms. (3)",
+"What did the Tswana trade, and what did they get in return? (2)",
+"Name three things that missionaries did on the frontier. (3)",
+"Why did many farmers see the missionaries as enemies? (2)",
+"Why was Kuruman an important stop for traders, explorers and hunters? (2)",
+"Explain how the Batlhaping won the Battle of Dithakong in 1823. (2)",
+"<h3>Section E: Source</h3><p><i>Read the source and answer question 18.</i></p><blockquote>In 1823 a large group of displaced people threatened the Batlhaping at Dithakong. The missionary Robert Moffat sent for help. Adam Kok and other Griqua leaders arrived with more than 100 men on horseback, armed with guns, and the attack was driven back.</blockquote>",
+"Is the source an example of co-operation, conflict, or both? Give a reason for your answer. (2)",
+"Which Ndebele king was Robert Moffat's lifelong friend? (1)",
+"<h3>Section F: Paragraph</h3>",
+"Write a paragraph of 8 to 10 sentences to answer the key question: How did co-operation and conflict shape the frontiers of the Cape Colony in the early 19th century? Use examples from BOTH the eastern and the northern frontier. (8)"
+  ],
+  memo:[
+"A frontier is a border area between territories that can move ✔. It is where different groups meet, live side by side and compete for land and resources ✔.",
+"Guerrilla warfare is when a smaller, weaker group of fighters ✔ uses sudden surprise attacks against a much larger, stronger army ✔.",
+"An intermediary is a go-between who carries messages and helps two sides deal with each other ✔. Missionaries (e.g. Robert Moffat / the LMS) or European traders acted as intermediaries between the Cape Colony and the Tswana ✔.",
+"The Cape was an important stop on the sea route from Europe to the East (India and Asia) ✔, where ships got fresh water, food and repairs, so whoever controlled the Cape controlled the trade route ✔.",
+"Any three ✔✔✔: cattle theft (raids and revenge raids); arguments about boundaries / the colony kept moving the boundary; the need for more land for farming and grazing; both groups needed the same grazing land and water.",
+"Cattle were their most precious possession because they gave milk and meat ✔, and a person's wealth was measured by the number of cattle they had ✔.",
+"Any four ✔✔✔✔: deaths; destruction of farms; loss of cattle; movement of people (people forced off their land or fled); changed the lives of both the Xhosa and the settlers.",
+"Any two ✔✔: they traded cattle, ivory and goods (beads, cloth, metal); they shared information; some Xhosa worked on settler farms.",
+"Graham was sent to secure the Zuurveld and forced the Xhosa beyond the Fish River ✔. As a result the Fish River became the border, forts were built along it, and Grahamstown was founded in 1812 as the British headquarters ✔.",
+"In 1829 the colonial government expelled Maqoma and his people from the fertile Kat River valley ✔. Losing this land made him a determined enemy of colonial rule ✔.",
+"His fighters knew the thick bush, forests and steep valleys along the Fish River and could hide and make surprise attacks ✔. The British could not march in lines or use their guns well there, so their larger numbers did not help them ✔.",
+"Batlhaping ✔, Barolong ✔ and Batlhare ✔.",
+"They traded ivory, cattle skins and feathers ✔ for guns and shop-bought goods (from European traders and the Griqua) ✔. Also accept: iron ore for iron tools and copper ornaments.",
+"Any three ✔✔✔: set up mission stations; gave people small plots of land to grow food; set up schools teaching Christianity, reading and writing; introduced western medicine; taught new farming techniques; wrote down African languages; acted as translators and scribes for chiefs; acted as intermediaries.",
+"Missionaries believed the law should be equal for everyone ✔, and many workers left the farms to live at mission stations, so farmers lost workers ✔.",
+"Kuruman had a steady supply of fresh water and food crops ✔, so it became an essential refuelling station for people travelling deep into the interior ✔.",
+"Robert Moffat used his frontier connections to call the Griqua for help ✔. Adam Kok brought over 100 men with guns on horseback, and their guns and horses helped the Batlhaping win ✔.",
+"Both ✔ (accept co-operation if well explained). Co-operation: Moffat and the Griqua helped the Batlhaping; conflict: there was a battle against the displaced people ✔.",
+"Mzilikazi ✔.",
+"Mark out of 8. CONTENT (6): 1 mark for each relevant, correct fact, up to 6. Must include examples of BOTH co-operation and conflict for full marks. Co-operation, e.g.: trade of cattle, ivory and goods on the eastern frontier; Tswana trading ivory, skins and feathers for guns; missionaries teaching farming, reading and writing and acting as translators; Moffat and the Griqua helping the Batlhaping at Dithakong; Moffat's friendship with Mzilikazi. Conflict, e.g.: disputes over land, cattle and boundaries; cattle raids; nine Frontier Wars (1779–1879); Graham forcing the Xhosa beyond the Fish River (1811); Maqoma expelled from the Kat River (1829) and his guerrilla war (1850–1853). STRUCTURE (2): 1 mark for an opening sentence that answers the question and a closing sentence; 1 mark for full sentences with capital letters, full stops and linking words (however, because, as a result). Lists or bullet points: maximum 4 out of 8."
+  ]});

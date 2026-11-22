@@ -130,7 +130,7 @@ function timerBar(x, left, upMsg){
 /* ----- timed tests (multiple choice, or written with method) ----- */
 function vTestOnly(x, L, l){
   return `<button class="crumb" data-act="home">← Back</button>
-  <span class="eyebrow">${esc(sname(L.subject,l.grade))} · Test from your teacher · ${L.kind==="mc"?"multiple choice":"show your method"}</span>
+  <span class="eyebrow">${esc(sname(L.subject,l.grade))} · Test from your teacher · ${L.kind==="mc"?"multiple choice":L.subject==="math"?"show your method":"written answers"}</span>
   <h1 class="pagetitle">${esc(L.title)}</h1>
   ${x.msg?`<div class="banner"><b>Message from your teacher:</b> ${esc(x.msg)}</div>`:""}
   ${testBody(x, L)}`;
@@ -174,7 +174,7 @@ function testBody(x, L){
   }
   const typed = x.typed || {};
   return `${x.status==="redo"?`<div class="banner"><b>Your teacher asked you to redo this.</b> ${esc(x.feedback||"")} Fix your answers and hand in again.</div>`:timerBar(x, left, "Finish the line you are on and hand in now.")}
-  <article class="notes">${L.testIntro||""}</article>
+  ${L.testIntro?`<article class="notes">${L.testIntro}</article>`:""}
   ${items.map(it=>it.head ? `<div class="notes">${it.head}</div>` : isRem(it.q) ? REMOVED(it.n) : `<div class="panel tqa"><div class="tq"><b>${it.n}.</b> ${it.q}</div>
     <textarea data-ta="${it.n}" rows="${qMax(it.q)>=3?6:4}" placeholder="Type your answer and working here" aria-label="Answer to question ${it.n}">${esc(typed[it.n]||"")}</textarea></div>`).join("")}
   <p class="muted" id="lsaved" style="font-size:14px">Your typed answers save automatically.</p>
