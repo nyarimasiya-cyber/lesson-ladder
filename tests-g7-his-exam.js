@@ -160,3 +160,29 @@ M("Which sentence best describes your people's life BEFORE the trekboers and the
 M("Which pair shows BOTH co-operation and conflict when the settlers arrived?","We traded cattle and ivory for beads and cloth, but we fought over land, cattle and boundaries.",["We built schools together, and we never disagreed.","We fought every day and never traded.","We moved to Kuruman, and the Griqua helped us."],"The frontier had both."),
 M("Which is the best opinion sentence to end a paragraph about how your people were treated?","I believe my people were treated unfairly, because our land and cattle were taken from us by force.",["My people lived near the Fish River.","Maqoma was born in the 1790s.","There were nine Frontier Wars."],"An opinion gives a view AND a reason; the others are only facts.")
   ], 5)});
+
+/* Grade 7 History formal assessment task (writing): a trekboer's journal. The learner writes it on paper;
+   the teacher uploads the pages and marks it against these 7 criteria (50 marks). */
+defineTest("g7-his-writing", {grade:7, subject:"his", kind:"written", minutes:60, outOf:50,
+  title:"History formal assessment task · Writing: a trekboer's journal",
+  intro:`<p><b>Task:</b> Imagine you are one of the trekboers who came with Jan van Riebeeck, settled at the Cape, and later moved inland with your family, servants and slaves. Write <b>journal entries</b> (dated entries about your experiences, thoughts and feelings) about at least <b>three</b> of these events: your journey to the Cape; your arrival at the Cape of Storms; your settlement at the Cape; meeting the indigenous people; the arrival of slaves; your decision to move inland; your journey inland and meeting the Khoikhoi and San.</p>
+<p>Use the pictures (the Castle, the arrival of the Dutch, the Company's Garden) and Sources H and I in your textbook. Write at least <b>150 words per entry</b> (or four entries of 100 words). Write on paper; your teacher uploads your pages and marks them out of <b>50</b> using the 7 criteria below.</p>`,
+  test:[
+"<h3>Marking criteria</h3>",
+"Events: wrote about at least three of the listed events, each in its own entry. (10)",
+"Historical facts: correct and detailed facts, such as dates, places, people and what really happened. (10)",
+"Sources and pictures: used Source H (Koerikei), Source I (the trekboers) and the pictures. (5)",
+"Journal format: dated entries, written as \"I\", from the point of view of a trekboer. (5)",
+"Thoughts, feelings and opinions about the events and the people you met. (10)",
+"Length: three entries of at least 150 words, or four entries of 100 words. (5)",
+"Language: spelling, punctuation, full sentences and paragraphs. (5)"
+  ],
+  memo:[
+"10: three or more events, each a separate, well-developed entry. 6–8: three events but some thin. 3–5: events mixed together or only touched on. 0–2: fewer than three events.",
+"Facts to look for: 1652, Jan van Riebeeck and about 90 men, the VOC refreshment station; the mud fort and later the Castle; the Company's Garden; trade of copper, beads and tobacco for Khoikhoi cattle; Krotoa as interpreter; free burghers from 1657 on the Liesbeek River; the Khoikhoi–Dutch wars; slaves from 1658 (Angola, Madagascar, India, the East Indies) and their work; loan farms; trekboers moving inland for grazing and freedom from VOC control; Khoikhoi herders and San hunter-gatherers losing land; commandos against the San. 1 mark per correct, relevant fact, up to 10.",
+"5: uses both sources and at least one picture, e.g. quotes or reacts to Koerikei's question \"What are you doing on my land?\" and to the claim that trekboers were brave and \"do no harm\". 3: uses one source. 1: mentions a picture only. 0: no sources.",
+"5: every entry dated (e.g. \"6 April 1652\") and written as \"I/we\" by a trekboer throughout. 3: first person but no dates or entries. 1: switches between \"I\" and \"they\".",
+"10: clear, believable feelings and opinions for each event, with reasons, including an opinion of the Khoikhoi and San and of slavery. 5–7: some feelings, not explained. 1–4: very few.",
+"5: meets the length (about 450 words). 3: about 300 words. 2: about 250 words. 1: under 200 words.",
+"5: few errors, full sentences, paragraphs. 3: some errors but clear. 2: many spelling errors and run-on sentences. 0–1: hard to read."
+  ]});
