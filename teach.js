@@ -425,11 +425,11 @@ function buildReport(code, k, note){
       const L = lessonOf(x), qN = lessonTestItems(L).filter(it=>!it.head && !isRem(it.q)), rightOf = qm => qm ? qN.filter(it=>qm[it.n]===qMax(it.q)).length : null;
       const ic = p => p<PASS?"❌":p<GOAL?"⚠️":"✅", one = (p, qm, m) => { const rt = L.kind==="mc" ? rightOf(qm) : null; return `${p}%${p<PASS?" FAIL":""}${rt!=null?` (${rt} of ${qN.length} right)`:m!=null&&L.outOf?` (${m} out of ${L.outOf})`:""}`; };
       const tries = (x.attempts||[]).filter(a=>inP(a.at)).map(a=>({p:a.pct, qm:a.qmarks, m:a.mark}));
-      if(at(x.markedAt) && x.status==="marked") tries.push({p:lessonPct(x), qm:x.qmarks, m:x.mark});
+      if(inP(x.markedAt) && x.status==="marked") tries.push({p:lessonPct(x), qm:x.qmarks, m:x.mark});
       if(tries.length){ const last = tries[tries.length-1];
         doneL.push(tries.length===1 ? `${ic(last.p)} ${short(x)}: ${one(last.p, last.qm, last.m)}` : `${ic(last.p)} ${short(x)}: ${tries.map((t,i)=>`try ${i+1} ${t.p}%`).join(" → ")}${last.p<PASS?" FAIL":""}`); }
-      else if(at(x.submittedAt)) waitL.push(short(x));
-      else if(at(x.testStartedAt)) goingL.push(short(x));
+      else if(inP(x.submittedAt) && x.status==="submitted") waitL.push(short(x));
+      else if(inP(x.testStartedAt) && !["submitted","marked"].includes(x.status)) goingL.push(short(x));
       else if(at(x.assignedAt)) notL.push(short(x));
     });
     /* "Maths Test 2, Maths Test 3" -> "Maths Tests 2, 3" */
