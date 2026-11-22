@@ -487,7 +487,6 @@ note && note.trim() ? `\n*Note:* ${note.trim()}` : null,
     const fails = doneL.filter(l=>l.startsWith("❌")).length;
     const todo = [];
     if(share < 2/3) todo.push(`work at home every day for 30 minutes`);
-    if(notL.length) todo.push(notL.length===1 ? `start the test he hasn't opened` : `start the ${notL.length} tests he hasn't opened`);
     if(goingL.length) todo.push(`finish what he started`);
     if(fails) todo.push(`retake the failed test${fails===1?"":"s"}`);
     const lastOwn = eventsFor(k.id).find(e=>!sup(new Date(e.at)) && e.at <= t1), agoN = lastOwn ? Math.floor((new Date().setHours(0,0,0,0) - new Date(lastOwn.at).setHours(0,0,0,0))/86400000) : null;
@@ -505,12 +504,11 @@ supBlocks.length ? `*Lessons with me*\n${supBlocks.join("\n\n")}\n` : null,
 wd ? `*On his own, he worked on*` : `*Subjects*`,
 subjLines.length ? subjLines.join("\n") : (wd ? `Nothing. He did not work on his own in this period.` : `None. No work done in this period.`),
 ``,
-(doneL.length || waitL.length || goingL.length || notL.length) ? `*Tests from me*` : null,
+(doneL.length || waitL.length || goingL.length) ? `*Tests from me*` : null,
 ...doneL,
 waitL.length ? `⏳ Waiting for marking: ${group(waitL)}` : null,
 goingL.length ? `✏️ Started, not finished: ${group(goingL)}` : null,
-notL.length ? `🚫 Not started: ${group(notL)}` : null,
-(doneL.length || waitL.length || goingL.length || notL.length) ? `` : null,
+(doneL.length || waitL.length || goingL.length) ? `` : null,
 note && note.trim() ? `*Note:* ${note.trim()}\n` : null,
 todo.length ? `*He needs to:* ${todo.join(", ")}. Goal: 80%.` : `*Well done.* Please encourage him to keep going.`,
 ``,
